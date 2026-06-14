@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>My Kitchen Rules · 餐厅全能管家</title>
+<meta name="description" content="餐厅老板的全能管家——极致全能、简约设计、零摩擦操作，彻底消灭老板的管理内耗。" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#F6F2EC;
+    --paper-2:#FBF8F3;
+    --card:#FFFFFF;
+    --ink:#211E1B;
+    --ink-soft:#6F655B;
+    --line:rgba(33,30,27,.10);
+    --line-2:rgba(33,30,27,.06);
+    --accent:#C9612E;       /* 暖陶土 */
+    --accent-soft:#F4E2D5;
+    --green:#2F8F5B;
+    --red:#D8453C;
+    --amber:#E0A11B;
+    --radius:22px;
+    --radius-lg:34px;
+    --shadow:0 1px 2px rgba(33,30,27,.04), 0 18px 40px -22px rgba(33,30,27,.22);
+    --shadow-soft:0 1px 2px rgba(33,30,27,.04), 0 10px 26px -18px rgba(33,30,27,.18);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:"Noto Sans SC",system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+  .serif{font-family:"Playfair Display","Noto Sans SC",serif;}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px;}
+  a{color:inherit;text-decoration:none;}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;}
+
+  /* ---------- nav ---------- */
+  header.nav{
+    position:sticky;top:0;z-index:50;
+    background:rgba(246,242,236,.82);
+    backdrop-filter:saturate(180%) blur(14px);
+    border-bottom:1px solid var(--line-2);
+  }
+  .nav-in{display:flex;align-items:center;justify-content:space-between;height:68px;}
+  .brand{display:flex;align-items:center;gap:11px;font-weight:700;letter-spacing:.2px;}
+  .logo{
+    width:34px;height:34px;border-radius:11px;
+    background:var(--ink);color:var(--paper);
+    display:grid;place-items:center;font-weight:900;font-size:17px;
+    font-family:"Playfair Display",serif;
+  }
+  .brand small{display:block;font-size:11px;color:var(--ink-soft);font-weight:400;letter-spacing:.04em;}
+  nav.links{display:flex;gap:28px;align-items:center;}
+  nav.links a{font-size:14.5px;color:var(--ink-soft);font-weight:500;transition:color .2s;}
+  nav.links a:hover{color:var(--ink);}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;justify-content:center;
+    height:46px;padding:0 22px;border-radius:999px;font-weight:600;font-size:14.5px;
+    white-space:nowrap;transition:transform .18s ease, box-shadow .2s, background .2s;
+    min-height:46px;
+  }
+  .btn-dark{background:var(--ink);color:var(--paper);box-shadow:var(--shadow-soft);}
+  .btn-dark:hover{transform:translateY(-1px);}
+  .btn-ghost{background:var(--card);color:var(--ink);border:1px solid var(--line);}
+  .btn-ghost:hover{background:var(--paper-2);}
+  @media(max-width:760px){nav.links{display:none}}
+
+  /* ---------- hero ---------- */
+  .hero{padding:72px 0 40px;position:relative;overflow:hidden;}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--accent);font-weight:700;
+    background:var(--accent-soft);padding:7px 14px;border-radius:999px;
+  }
+  .hero h1{
+    font-size:clamp(38px,6.5vw,72px);line-height:1.04;font-weight:900;
+    letter-spacing:-.01em;margin:22px 0 0;max-width:13ch;
+  }
+  .hero h1 em{font-style:normal;color:var(--accent);}
+  .lede{font-size:clamp(16px,2vw,19px);color:var(--ink-soft);max-width:46ch;margin-top:20px;}
+  .hero-cta{display:flex;gap:14px;margin-top:30px;flex-wrap:wrap;}
+  .hero-stats{display:flex;gap:38px;margin-top:42px;flex-wrap:wrap;}
+  .hero-stats .s b{font-family:"Playfair Display",serif;font-size:30px;font-weight:900;display:block;}
+  .hero-stats .s span{font-size:13px;color:var(--ink-soft);}
+
+  /* ---------- principles strip ---------- */
+  .principles{border-top:1px solid var(--line-2);border-bottom:1px solid var(--line-2);padding:26px 0;margin-top:46px;}
+  .principles .row{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;}
+  .principles .p{display:flex;gap:12px;align-items:flex-start;}
+  .principles .ic{font-size:22px;line-height:1.2;}
+  .principles h4{font-size:15px;font-weight:700;}
+  .principles p{font-size:13px;color:var(--ink-soft);}
+  @media(max-width:860px){.principles .row{grid-template-columns:repeat(2,1fr);gap:22px}}
+  @media(max-width:460px){.principles .row{grid-template-columns:1fr}}
+
+  /* ---------- section ---------- */
+  section.block{padding:80px 0;}
+  .sec-head{max-width:60ch;margin-bottom:40px;}
+  .sec-head .tag{font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;}
+  .sec-head h2{font-size:clamp(28px,4vw,40px);font-weight:900;letter-spacing:-.01em;margin-top:12px;line-height:1.12;}
+  .sec-head p{color:var(--ink-soft);margin-top:14px;font-size:16px;}
+
+  /* ---------- demo / portal switcher ---------- */
+  .demo-wrap{background:var(--paper-2);}
+  .tabs{display:inline-flex;gap:6px;background:var(--card);padding:6px;border-radius:999px;border:1px solid var(--line);box-shadow:var(--shadow-soft);margin-bottom:30px;flex-wrap:wrap;}
+  .tab{display:flex;align-items:center;gap:9px;height:46px;padding:0 20px;border-radius:999px;font-weight:600;font-size:14.5px;color:var(--ink-soft);transition:all .2s;}
+  .tab .dot{width:9px;height:9px;border-radius:50%;background:currentColor;opacity:.5;}
+  .tab.active{background:var(--ink);color:var(--paper);}
+  .tab.active .dot{opacity:1;}
+
+  .device{
+    background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);
+    box-shadow:var(--shadow);overflow:hidden;
+  }
+  .device-bar{display:flex;align-items:center;gap:8px;padding:15px 20px;border-bottom:1px solid var(--line-2);}
+  .device-bar .role-name{font-weight:700;font-size:15px;}
+  .device-bar .role-sub{font-size:12.5px;color:var(--ink-soft);}
+  .status-light{margin-left:auto;display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-soft);}
+  .status-light .lamp{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(47,143,91,.16);}
+
+  .panel{display:none;padding:24px;}
+  .panel.show{display:block;animation:fade .35s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  .grid{display:grid;gap:16px;}
+  .g2{grid-template-columns:1fr 1fr;}
+  .g3{grid-template-columns:repeat(3,1fr);}
+  @media(max-width:720px){.g2,.g3{grid-template-columns:1fr}}
+
+  .stat-card{background:var(--paper-2);border:1px solid var(--line-2);border-radius:var(--radius);padding:18px 20px;}
+  .stat-card .k{font-size:12.5px;color:var(--ink-soft);display:flex;align-items:center;gap:6px;}
+  .stat-card .v{font-family:"Playfair Display",serif;font-size:30px;font-weight:900;margin-top:6px;}
+  .stat-card .v small{font-size:14px;color:var(--ink-soft);font-weight:400;font-family:"Noto Sans SC";}
+  .delta{font-size:12.5px;font-weight:600;}
+  .delta.up{color:var(--green);}.delta.flat{color:var(--ink-soft);}
+
+  .bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:12px;}
+  .bar i{display:block;height:100%;background:var(--accent);border-radius:99px;}
+
+  .alert{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:16px;border:1px solid;font-size:13.5px;}
+  .alert.red{background:#fdecea;border-color:#f3c6c2;color:#922019;}
+  .alert.green{background:#e9f6ee;border-color:#bfe3cd;color:#1d6a40;}
+  .alert.amber{background:#fbf2da;border-color:#eed9a4;color:#8a6410;}
+  .alert b{font-weight:700;}
+
+  .list{display:flex;flex-direction:column;}
+  .li{display:flex;align-items:center;gap:14px;padding:14px 4px;border-bottom:1px solid var(--line-2);}
+  .li:last-child{border-bottom:none;}
+  .li .ava{width:38px;height:38px;border-radius:12px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:14px;flex-shrink:0;}
+  .li .meta{flex:1;min-width:0;}
+  .li .meta b{font-size:14.5px;font-weight:600;display:block;}
+  .li .meta span{font-size:12.5px;color:var(--ink-soft);}
+  .pill{font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px;white-space:nowrap;}
+  .pill.ok{background:#e9f6ee;color:var(--green);}
+  .pill.warn{background:#fbf2da;color:#8a6410;}
+  .pill.danger{background:#fdecea;color:var(--red);}
+  .pill.ghost{background:var(--paper-2);color:var(--ink-soft);border:1px solid var(--line);}
+
+  .section-title{font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--ink-soft);margin:4px 0 12px;text-transform:uppercase;}
+
+  /* roster / schedule */
+  .ros{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
+  .ros .hd{font-size:11.5px;color:var(--ink-soft);text-align:center;font-weight:600;}
+  .ros .cell{background:var(--paper-2);border:1px solid var(--line-2);border-radius:14px;min-height:78px;padding:8px;font-size:11px;}
+  .ros .cell .d{font-weight:700;font-size:12px;color:var(--ink-soft);}
+  .ros .chip{display:block;margin-top:5px;padding:3px 6px;border-radius:7px;font-size:10.5px;font-weight:600;line-height:1.3;}
+  .ros .chip.a{background:#e7eefb;color:#2b5bb5;}
+  .ros .chip.b{background:#fdeee2;color:#b35a25;}
+  .ros .chip.off{background:#fdecea;color:var(--red);}
+  @media(max-width:720px){.ros{grid-template-columns:repeat(7,1fr);gap:4px}.ros .cell{min-height:62px;padding:5px}}
+
+  /* POS / cash counter */
+  .cash{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+  .denom{background:var(--paper-2);border:1px solid var(--line-2);border-radius:14px;padding:12px;text-align:center;}
+  .denom b{font-size:18px;display:block;}
+  .denom .ct{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:8px;}
+  .denom .ct button{width:30px;height:30px;border-radius:9px;background:var(--card);border:1px solid var(--line);font-weight:700;font-size:16px;color:var(--ink);}
+  .denom .ct span{min-width:22px;font-weight:700;}
+  .total-box{background:var(--ink);color:var(--paper);border-radius:18px;padding:18px 20px;display:flex;align-items:baseline;justify-content:space-between;margin-top:14px;}
+  .total-box .v{font-family:"Playfair Display",serif;font-size:30px;font-weight:900;}
+
+  .disclaimer{font-size:12px;color:var(--ink-soft);background:var(--paper-2);border:1px dashed var(--line);border-radius:14px;padding:12px 14px;margin-top:16px;display:flex;gap:9px;}
+
+  /* ---------- features ---------- */
+  .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+  @media(max-width:880px){.feat-grid{grid-template-columns:1fr 1fr}}
+  @media(max-width:560px){.feat-grid{grid-template-columns:1fr}}
+  .feat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:26px 24px;box-shadow:var(--shadow-soft);transition:transform .2s, box-shadow .2s;}
+  .feat:hover{transform:translateY(-3px);box-shadow:var(--shadow);}
+  .feat .ic{width:46px;height:46px;border-radius:14px;background:var(--accent-soft);display:grid;place-items:center;font-size:22px;margin-bottom:16px;}
+  .feat h3{font-size:17px;font-weight:700;}
+  .feat p{font-size:14px;color:var(--ink-soft);margin-top:8px;}
+  .feat .ph{font-size:11.5px;font-weight:700;color:var(--accent);margin-top:14px;letter-spacing:.05em;}
+
+  /* ---------- phases timeline ---------- */
+  .phases{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+  @media(max-width:820px){.phases{grid-template-columns:1fr}}
+  .phase{border-radius:var(--radius);padding:26px;border:1px solid var(--line);background:var(--card);}
+  .phase.now{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+  .phase .pnum{font-family:"Playfair Display",serif;font-size:40px;font-weight:900;line-height:1;}
+  .phase h4{margin-top:10px;font-size:17px;font-weight:700;}
+  .phase ul{list-style:none;margin-top:14px;display:flex;flex-direction:column;gap:9px;}
+  .phase li{font-size:13.5px;display:flex;gap:9px;color:var(--ink-soft);}
+  .phase.now li{color:rgba(246,242,236,.78);}
+  .phase li::before{content:"—";opacity:.5;}
+  .phase.now .pnum{color:var(--accent);}
+
+  /* ---------- compliance ---------- */
+  .comp-wrap{background:var(--paper-2);}
+  .comp-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+  @media(max-width:680px){.comp-grid{grid-template-columns:1fr}}
+  .comp{display:flex;gap:13px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;}
+  .comp .ck{width:24px;height:24px;border-radius:8px;background:var(--green);color:#fff;display:grid;place-items:center;font-size:14px;flex-shrink:0;font-weight:700;}
+  .comp b{font-size:14.5px;}
+  .comp p{font-size:13px;color:var(--ink-soft);margin-top:3px;}
+
+  /* ---------- cta ---------- */
+  .cta{background:var(--ink);color:var(--paper);border-radius:var(--radius-lg);padding:56px 40px;text-align:center;}
+  .cta h2{font-size:clamp(26px,4vw,38px);font-weight:900;}
+  .cta p{color:rgba(246,242,236,.72);margin-top:14px;font-size:16px;max-width:50ch;margin-left:auto;margin-right:auto;}
+  .cta .btn-dark{background:var(--paper);color:var(--ink);}
+  .cta .row{display:flex;gap:14px;justify-content:center;margin-top:28px;flex-wrap:wrap;}
+
+  /* ---------- footer ---------- */
+  footer{padding:46px 0 60px;color:var(--ink-soft);font-size:13px;}
+  .foot-in{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;border-top:1px solid var(--line-2);padding-top:28px;}
+
+  .reveal{opacity:0;transform:translateY(20px);transition:opacity .7s ease, transform .7s ease;}
+  .reveal.in{opacity:1;transform:none;}
+  @media (prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<header class="nav">
+  <div class="wrap nav-in">
+    <div class="brand">
+      <div class="logo">M</div>
+      <div>My Kitchen Rules<small>餐厅全能管家系统</small></div>
+    </div>
+    <nav class="links">
+      <a href="#demo">三端演示</a>
+      <a href="#features">核心能力</a>
+      <a href="#phases">开发路线</a>
+      <a href="#compliance">澳洲合规</a>
+    </nav>
+    <a href="#cta" class="btn btn-dark">预约试用</a>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap">
+    <span class="eyebrow">为澳洲中小餐厅打造 · AUD</span>
+    <h1 class="reveal">餐厅老板的<br><em>全能管家</em>。</h1>
+    <p class="lede reveal">极致全能、简约设计、零摩擦操作。系统平时静默运行，只有出问题时才主动打扰你——彻底消灭老板的管理内耗。</p>
+    <div class="hero-cta reveal">
+      <a href="#demo" class="btn btn-dark">▶ 体验三端演示</a>
+      <a href="#features" class="btn btn-ghost">了解核心能力</a>
+    </div>
+    <div class="hero-stats reveal">
+      <div class="s"><b>3 击</b><span>所有高频操作 ≤ 3 次点击</span></div>
+      <div class="s"><b>48 px</b><span>触控按钮最小尺寸</span></div>
+      <div class="s"><b>7 年</b><span>合规数据加密留存</span></div>
+      <div class="s"><b>$0</b><span>断网时照常营业</span></div>
+    </div>
+  </div>
+
+  <!-- principles -->
+  <div class="principles">
+    <div class="wrap row">
+      <div class="p"><div class="ic">🔒</div><div><h4>三端隔离</h4><p>老板 / 经理 / 员工各看各的</p></div></div>
+      <div class="p"><div class="ic">🔕</div><div><h4>异常才打扰</h4><p>平时静默，出事才推送</p></div></div>
+      <div class="p"><div class="ic">👆</div><div><h4>傻瓜化</h4><p>员工端无需培训上手</p></div></div>
+      <div class="p"><div class="ic">📊</div><div><h4>数据工具</h4><p>只汇总不报税，人工确认</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- DEMO -->
+<section class="block demo-wrap" id="demo">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="tag">三端权限完全隔离</div>
+      <h2>同一套系统，三种界面</h2>
+      <p>老板只看结果与审批，经理执行排班与带团队，员工傻瓜化打卡做任务。切换下方角色，看看各自的界面。</p>
+    </div>
+
+    <div class="tabs reveal" role="tablist">
+      <button class="tab active" data-tab="owner"><span class="dot"></span>老板端</button>
+      <button class="tab" data-tab="manager"><span class="dot"></span>经理端</button>
+      <button class="tab" data-tab="staff"><span class="dot"></span>员工端</button>
+      <button class="tab" data-tab="pos"><span class="dot"></span>收银端 POS</button>
+    </div>
+
+    <div class="device reveal">
+      <div class="device-bar">
+        <div>
+          <div class="role-name" id="roleName">老板 · Owner</div>
+          <div class="role-sub" id="roleSub">睡后管理 · 只看结果、只做审批</div>
+        </div>
+        <div class="status-light"><span class="lamp"></span>已连接 · 本地保护就绪</div>
+      </div>
+
+      <!-- OWNER -->
+      <div class="panel show" data-panel="owner">
+        <div class="alert green" style="margin-bottom:18px">
+          <span>📩</span>
+          <div><b>今日智能日报（打烊自动推送）</b><br>营业额 <b>$3,240</b>，比上周四 +12%；现金差异 <b>$0</b>；明日预订 8 桌。</div>
+        </div>
+        <div class="grid g3" style="margin-bottom:16px">
+          <div class="stat-card"><div class="k">📈 今日营业额</div><div class="v">$3,240</div><div class="delta up">▲ +12% vs 上周四</div></div>
+          <div class="stat-card"><div class="k">💵 盲对账差异</div><div class="v">$0</div><div class="delta flat">现金应收=实收</div></div>
+          <div class="stat-card"><div class="k">🎯 保本线进度</div><div class="v">86<small>%</small></div><div class="bar"><i style="width:86%"></i></div></div>
+        </div>
+        <div class="grid g2">
+          <div>
+            <div class="section-title">红色警报 · 只在出事时打扰</div>
+            <div class="alert red" style="margin-bottom:10px"><span>⚠️</span><div><b>大额退款待审</b> · 前台 19:42 退款 $128，操作人 Kevin。</div></div>
+            <div class="alert amber"><span>⏰</span><div><b>连续迟到</b> · 员工 Amy 本周第 3 次迟到 12 分钟。</div></div>
+          </div>
+          <div>
+            <div class="section-title">待审批</div>
+            <div class="list">
+              <div class="li"><div class="ava">人</div><div class="meta"><b>下周末排班成本超标</b><span>人工费占比 34% · 高于阈值 28%</span></div><span class="pill warn">待审批</span></div>
+              <div class="li"><div class="ava">超</div><div class="meta"><b>本季度 Super 应缴汇总</b><span>截止 7 月 28 日 · $4,612</span></div><span class="pill ghost">提醒</span></div>
+              <div class="li"><div class="ava">签</div><div class="meta"><b>学生签工时预警</b><span>2 人本双周接近 48h 上限</span></div><span class="pill danger">关注</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="disclaimer"><span>ℹ️</span>本系统提供数据汇总与导出，最终税务申报数字以会计师确认为准；不直接对接 ATO。</div>
+      </div>
+
+      <!-- MANAGER -->
+      <div class="panel" data-panel="manager">
+        <div class="grid g2" style="margin-bottom:18px">
+          <div class="stat-card"><div class="k">🗓 本周排班总薪资</div><div class="v">$8,940</div><div class="delta flat">占预估营业额 26%（健康）</div></div>
+          <div class="stat-card"><div class="k">🧑‍🍳 在岗 / 排班</div><div class="v">12<small> 人</small></div><div class="delta up">SOS 顶班 1 人已抢单</div></div>
+        </div>
+        <div class="section-title">日历式排班 · 拖拽即可</div>
+        <div class="ros" style="margin-bottom:16px">
+          <div class="hd">一</div><div class="hd">二</div><div class="hd">三</div><div class="hd">四</div><div class="hd">五</div><div class="hd">六</div><div class="hd">日</div>
+          <div class="cell"><span class="d">9</span><span class="chip a">Amy 早</span></div>
+          <div class="cell"><span class="d">10</span><span class="chip b">Kevin 晚</span></div>
+          <div class="cell"><span class="d">11</span><span class="chip a">Amy 早</span></div>
+          <div class="cell"><span class="d">12</span><span class="chip b">Leo 晚</span></div>
+          <div class="cell"><span class="d">13</span><span class="chip a">Amy 早</span><span class="chip b">Kevin 晚</span></div>
+          <div class="cell"><span class="d">14</span><span class="chip b">满班</span></div>
+          <div class="cell"><span class="d">15</span><span class="chip off">Leo OFF</span></div>
+        </div>
+        <div class="alert amber" style="margin-bottom:10px"><span>🛂</span><div><b>签证工时硬卡控</b> · Leo（学生签）本双周已排 46h，再排将超 48h 上限——保存被禁止。</div></div>
+        <div class="alert green"><span>✅</span><div><b>法定薪资自动计算</b> · 已按年龄 + 工时类型切分平日/周末/公众假期费率。<b>结果供参考，发薪前需雇主确认。</b></div></div>
+      </div>
+
+      <!-- STAFF -->
+      <div class="panel" data-panel="staff">
+        <div class="grid g2" style="margin-bottom:18px">
+          <div class="stat-card"><div class="k">📅 我的下个班</div><div class="v" style="font-size:22px">明早 09:00</div><div class="delta up">上班前 1 小时自动提醒</div></div>
+          <div class="stat-card"><div class="k">✅ 今日任务</div><div class="v">3<small> / 5 完成</small></div><div class="bar"><i style="width:60%"></i></div></div>
+        </div>
+        <div class="section-title">每日任务清单 · 完成后拍照上传</div>
+        <div class="list" style="margin-bottom:16px">
+          <div class="li"><div class="ava">🌡️</div><div class="meta"><b>冰箱温度检查</b><span>已记录 3.5°C · 含照片</span></div><span class="pill ok">已完成</span></div>
+          <div class="li"><div class="ava">🧽</div><div class="meta"><b>后厨卫生清洁</b><span>已勾选 + 拍照</span></div><span class="pill ok">已完成</span></div>
+          <div class="li"><div class="ava">📦</div><div class="meta"><b>打烊冷柜盘点照</b><span>AI 自动识别清点</span></div><span class="pill warn">待完成</span></div>
+        </div>
+        <div class="alert red"><span>🆘</span><div><b>SOS 紧急顶班</b> · 今晚 18:00 暴单缺 1 人，奖励 +$40。<b>一键抢单 →</b></div></div>
+      </div>
+
+      <!-- POS -->
+      <div class="panel" data-panel="pos">
+        <div class="section-title">快准点钱 · 点击钞票面额数量自动算总额</div>
+        <div class="cash">
+          <div class="denom"><b>$100</b><div class="ct"><button>−</button><span>0</span><button>+</button></div></div>
+          <div class="denom"><b>$50</b><div class="ct"><button>−</button><span>3</span><button>+</button></div></div>
+          <div class="denom"><b>$20</b><div class="ct"><button>−</button><span>5</span><button>+</button></div></div>
+          <div class="denom"><b>$10</b><div class="ct"><button>−</button><span>4</span><button>+</button></div></div>
+          <div class="denom"><b>$5</b><div class="ct"><button>−</button><span>6</span><button>+</button></div></div>
+          <div class="denom"><b>硬币</b><div class="ct"><button>−</button><span>—</span><button>+</button></div></div>
+        </div>
+        <div class="total-box"><span>盲数现金合计</span><span class="v">$320.00</span></div>
+        <div class="alert green" style="margin-top:14px"><span>🥁</span><div><b>抽屉式盲对账（Blind Drop）</b> · 后台应收已隐藏，员工先盲数输入，系统再比对并把差异报告发老板——杜绝暗箱、漏单、私自打折。</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="block" id="features">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="tag">核心能力</div>
+      <h2>从点餐到对账，一条闭环</h2>
+      <p>覆盖前台 POS、后厨 KDS、排班薪资、库存供应链、合规守护——每个高频操作都在 3 次点击内完成。</p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat reveal"><div class="ic">🧾</div><h3>极简点餐 POS</h3><p>快速加单、备注「去葱」、一键传后厨；网页/iPad 通用，大按钮大字体。</p><div class="ph">一期 · MVP</div></div>
+      <div class="feat reveal"><div class="ic">📺</div><h3>后厨数字传菜 KDS</h3><p>大字方块实时显示订单与特殊要求，做完点击消除，淘汰纸质小票。</p><div class="ph">一期 · MVP</div></div>
+      <div class="feat reveal"><div class="ic">🥁</div><h3>盲对账防偷钱</h3><p>隐藏应收，员工先盲数；差异自动生成报告推送老板。</p><div class="ph">一期 · MVP</div></div>
+      <div class="feat reveal"><div class="ic">📅</div><h3>智能排班引擎</h3><p>拖拽排班，实时显示薪资占比；按 Award 自动切分费率，签证工时硬卡控。</p><div class="ph">一期 · MVP</div></div>
+      <div class="feat reveal"><div class="ic">📝</div><h3>员工自助入职</h3><p>手机链接填 TFN / Super / 银行信息；TFN 单独加密，仅老板可调取。</p><div class="ph">一期 · MVP</div></div>
+      <div class="feat reveal"><div class="ic">📦</div><h3>扣减式智能库存</h3><p>结账按配方自动扣食材，低于安全线生成订货提醒；AI 拍照识别补货。</p><div class="ph">二期</div></div>
+      <div class="feat reveal"><div class="ic">🍽️</div><h3>桌码自助点餐</h3><p>顾客扫码免注册点餐、催菜；1-3 星差评内部拦截，老板私下安抚。</p><div class="ph">二期</div></div>
+      <div class="feat reveal"><div class="ic">🛡️</div><h3>合规守护</h3><p>Super 缴纳提醒、签证工时总览、食品安全审计报告一键导出 PDF。</p><div class="ph">一 / 二期</div></div>
+      <div class="feat reveal"><div class="ic">📤</div><h3>财务导出 · 会计对接</h3><p>工资 / 营业额 / GST 一键导出；二期同步 Xero / MYOB，绝不直连 ATO。</p><div class="ph">二 / 三期</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- PHASES -->
+<section class="block" id="phases" style="background:var(--paper-2)">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="tag">开发路线</div>
+      <h2>先跑通闭环，再筑护城河</h2>
+    </div>
+    <div class="phases">
+      <div class="phase now reveal">
+        <div class="pnum">01</div>
+        <h4>一期 · MVP 核心闭环</h4>
+        <ul>
+          <li>三端登录与权限隔离</li>
+          <li>极简 POS + 后厨 KDS</li>
+          <li>快准点钱 + 盲对账</li>
+          <li>排班引擎 + 薪资参考 + 签证卡控</li>
+          <li>员工自助入职</li>
+          <li>每日日报 + 异常红警</li>
+          <li>断网 / 误刷新保护（底层内置）</li>
+        </ul>
+      </div>
+      <div class="phase reveal">
+        <div class="pnum">02</div>
+        <h4>二期 · 增强护城河</h4>
+        <ul>
+          <li>扣减式库存 + AI 拍照补货</li>
+          <li>成本率核算 + 保本线看板</li>
+          <li>桌码点餐 + 催菜 + 差评拦截</li>
+          <li>食品安全审计报告导出</li>
+          <li>刷卡流水对账</li>
+        </ul>
+      </div>
+      <div class="phase reveal">
+        <div class="pnum">03</div>
+        <h4>三期 · 生态扩展</h4>
+        <ul>
+          <li>Xero / MYOB API 同步</li>
+          <li>会员沉淀与营销短信</li>
+          <li>预订排队取号</li>
+          <li>多店连锁大盘深化</li>
+          <li>iPad 原生应用</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPLIANCE -->
+<section class="block comp-wrap" id="compliance">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="tag">澳洲合规 · 上线前必查</div>
+      <h2>符合 Fair Work、Privacy Act 与食品安全</h2>
+      <p>系统是数据工具，不提供税务建议、不直接申报；所有工资税务数字保留「人工确认」步骤与免责声明。</p>
+    </div>
+    <div class="comp-grid">
+      <div class="comp reveal"><div class="ck">✓</div><div><b>TFN 单独加密</b><p>税号字段独立加密存储，非老板角色无法访问（Privacy Act TFN Rule）。</p></div></div>
+      <div class="comp reveal"><div class="ck">✓</div><div><b>审计日志只追加</b><p>append-only 结构，改单 / 取消 / 打折 / 退款全程留痕，不可篡改删除。</p></div></div>
+      <div class="comp reveal"><div class="ck">✓</div><div><b>一键离职熔断</b><p>标记离职后权限瞬间失效，合规数据加密留存 7 年备审计。</p></div></div>
+      <div class="comp reveal"><div class="ck">✓</div><div><b>薪资人工确认</b><p>「计算结果供参考，以雇主最终确认为准」；不含任何向 ATO 申报功能。</p></div></div>
+      <div class="comp reveal"><div class="ck">✓</div><div><b>签证工时硬卡控</b><p>学生签双周接近 48h 预警，超限直接禁止保存排班。</p></div></div>
+      <div class="comp reveal"><div class="ck">✓</div><div><b>无障碍触控</b><p>按钮触控区域 ≥ 48px，简体中文文案，金额统一 AUD $。</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="block" id="cta">
+  <div class="wrap">
+    <div class="cta reveal">
+      <h2>让系统替你盯着，安心睡个好觉</h2>
+      <p>平时静默运行，出事才推送一条消息到你手机。从今天起，告别管理内耗。</p>
+      <div class="row">
+        <a href="#demo" class="btn btn-dark">▶ 再看一遍三端演示</a>
+        <a href="mailto:hello@mykitchenrules.au" class="btn btn-ghost" style="background:transparent;color:var(--paper);border-color:rgba(246,242,236,.3)">联系我们</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot-in">
+    <div class="brand">
+      <div class="logo">M</div>
+      <div>My Kitchen Rules<small>为澳洲中小餐厅打造 · AUD</small></div>
+    </div>
+    <div>© 2026 My Kitchen Rules · 数据工具，不提供税务建议 · 最终数字以会计师确认为准</div>
+  </div>
+</footer>
+
+<script>
+  // 角色切换
+  const subMap = {
+    owner:["老板 · Owner","睡后管理 · 只看结果、只做审批"],
+    manager:["经理 · Manager","执行业务与带团队 · 排班 / 招人 / 审核"],
+    staff:["员工 · Staff","傻瓜化高效执行 · 打卡 / 看班 / 做任务"],
+    pos:["前台收银 · POS","极简点餐 · 快准点钱 · 盲对账"]
+  };
+  const tabs = document.querySelectorAll('.tab');
+  const panels = document.querySelectorAll('.panel');
+  tabs.forEach(t=>t.addEventListener('click',()=>{
+    const k=t.dataset.tab;
+    tabs.forEach(x=>x.classList.toggle('active',x===t));
+    panels.forEach(p=>p.classList.toggle('show',p.dataset.panel===k));
+    document.getElementById('roleName').textContent=subMap[k][0];
+    document.getElementById('roleSub').textContent=subMap[k][1];
+  }));
+
+  // 滚动渐显
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+  // 钞票计数交互（演示）
+  document.querySelectorAll('.denom .ct').forEach(ct=>{
+    const span=ct.querySelector('span');
+    const [minus,plus]=ct.querySelectorAll('button');
+    const get=()=>parseInt(span.textContent)||0;
+    plus.addEventListener('click',()=>{span.textContent=get()+1;recalc();});
+    minus.addEventListener('click',()=>{span.textContent=Math.max(0,get()-1);recalc();});
+  });
+  function recalc(){
+    const vals=[100,50,20,10,5,0];
+    let total=0;
+    document.querySelectorAll('.denom').forEach((d,i)=>{
+      const n=parseInt(d.querySelector('span').textContent)||0;
+      total+=n*vals[i];
+    });
+    const box=document.querySelector('.total-box .v');
+    if(box) box.textContent='$'+total.toFixed(2);
+  }
+</script>
+</body>
+</html>

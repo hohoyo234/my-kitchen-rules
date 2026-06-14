@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
+<title>My Kitchen Rules · 餐厅全能管家系统</title>
+<meta name="description" content="餐厅老板的全能管家——三端登录、点餐收银、盲对账、智能排班、合规守护。" />
+<meta name="theme-color" content="#F6F2EC" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css?v=6" />
+</head>
+<body>
+  <div id="root">
+    <div class="login-wrap"><div class="faint">正在启动 My Kitchen Rules…</div></div>
+  </div>
+
+  <!-- 底层模块（顺序敏感，普通 script 共享 MKR 全局，支持 file:// 双击打开） -->
+  <script src="js/util.js?v=6"></script>
+  <!-- Supabase 云端 SDK + 配置（必须在 db.js 之前）-->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supa.js?v=6"></script>
+  <script src="js/db.js?v=6"></script>
+  <script src="js/crypto.js?v=6"></script>
+  <script src="js/audit.js?v=6"></script>
+  <script src="js/pay.js?v=6"></script>
+  <script src="js/seed.js?v=6"></script>
+  <script src="js/auth.js?v=6"></script>
+  <script src="js/net.js?v=6"></script>
+  <script src="js/alerts.js?v=6"></script>
+  <script src="js/setup.js?v=6"></script>
+  <!-- 视图 / 门户 -->
+  <script src="js/views/login.js?v=6"></script>
+  <script src="js/views/pos.js?v=6"></script>
+  <script src="js/views/kds.js?v=6"></script>
+  <script src="js/views/owner.js?v=6"></script>
+  <script src="js/views/manager.js?v=6"></script>
+  <script src="js/views/staff.js?v=6"></script>
+  <!-- 路由 + 启动 -->
+  <script src="js/router.js?v=6"></script>
+  <script src="js/app.js?v=6"></script>
+</body>
+</html>
