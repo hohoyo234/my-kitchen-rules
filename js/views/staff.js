@@ -8,8 +8,8 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     home:'my', subtitle:'傻瓜化执行 · 看班 / 打卡 / 抢单',
     nav:[
       {id:'my',     label:'我的班表', em:'📅', short:'班表'},
-      {id:'tasks',  label:'今日任务', em:'✅', short:'任务'},
-      {id:'market', label:'换班市场', em:'🔁', short:'换班'},
+      {id:'tasks',  label:'今日任务', em:'✅', short:'任务', feature:'tasks'},
+      {id:'market', label:'换班市场', em:'🔁', short:'换班', feature:'market'},
       {id:'me',     label:'我的资料', em:'🪪', short:'资料'},
     ],
     async badges(){

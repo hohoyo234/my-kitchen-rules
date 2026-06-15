@@ -227,6 +227,9 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 .toast{background:var(--ink);color:var(--paper);padding:12px 18px;border-radius:999px;font-size:14px;font-weight:500;box-shadow:var(--shadow);animation:pop .2s;max-width:90vw}
 .toast.green{background:var(--green)}.toast.red{background:var(--red)}.toast.amber{background:var(--amber);color:#3a2c05}
 
+.clickable{text-decoration:none;color:inherit;cursor:pointer;transition:transform .12s,box-shadow .2s}
+.clickable:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
+
 .empty{text-align:center;color:var(--ink-soft);padding:40px 20px}
 .empty .em{font-size:40px;opacity:.5}
 

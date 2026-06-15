@@ -29,20 +29,28 @@ window.MKR = window.MKR || {};
   }
 
   async function shell(root, portal, sess, section){
+    // 按功能开关/权限过滤可见导航
+    const can = (n)=> !n.feature || (MKR.features && MKR.features.can(n.feature, sess.role));
+    const visNav = portal.nav.filter(can);
+
+    // 守卫:直接访问被关闭/无权限的功能 → 退回首页
+    const target = portal.nav.find(n=>n.id===section);
+    if(target && !can(target)){ MKR.util.toast('该功能已被关闭或无权限','amber'); location.hash=`#/${sess.role}/${portal.home}`; return; }
+
     // 计算导航徽标（如未读警报数）
     const badges = portal.badges ? await portal.badges() : {};
-    const nav = portal.nav.map(n=>{
+    const nav = visNav.map(n=>{
       const active = n.id===section ? 'active':'';
       const badge = badges[n.id] ? `<span class="badge">${badges[n.id]}</span>`:'';
       return `<a class="nav-item ${active}" href="#/${sess.role}/${n.id}"><span class="em">${n.em}</span>${n.label}${badge}</a>`;
     }).join('');
 
-    const mobileNav = portal.nav.slice(0,5).map(n=>{
+    const mobileNav = visNav.slice(0,5).map(n=>{
       const active = n.id===section ? 'active':'';
       return `<a class="${active}" href="#/${sess.role}/${n.id}"><span class="em">${n.em}</span>${n.short||n.label}</a>`;
     }).join('');
 
-    const cur = portal.nav.find(n=>n.id===section) || portal.nav[0];
+    const cur = portal.nav.find(n=>n.id===section) || visNav[0] || portal.nav[0];
 
     root.innerHTML = `
       <div class="shell">

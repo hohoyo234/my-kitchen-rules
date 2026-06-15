@@ -42,6 +42,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       {id:'labor',     label:'人工成本', em:'💰', short:'成本'},
       {id:'team',      label:'团队管理', em:'👥', short:'团队'},
       {id:'compliance',label:'合规守护', em:'🛡️', short:'合规'},
+      {id:'settings',  label:'系统设置', em:'⚙️', short:'设置'},
     ],
     async badges(){ const a=(await MKR.db.getAll('alerts')).filter(x=>!x.read && x.level==='red').length; return a?{alerts:a}:{}; },
     async view(section,c){
@@ -52,8 +53,41 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       if(section==='labor') return labor(c);
       if(section==='team') return team(c);
       if(section==='compliance') return compliance(c);
+      if(section==='settings') return settings(c);
     }
   };
+
+  // ---------- 系统设置(功能开关 + 角色权限)----------
+  async function settings(c){
+    const mods = await MKR.features.load();
+    const roleNames={owner:'老板',manager:'经理',staff:'员工'};
+    const work = JSON.parse(JSON.stringify(mods));
+    c.innerHTML=`
+      <div class="section-head"><div><h2>系统设置</h2><p>开关功能模块 · 控制各角色可用范围</p></div>
+        <button class="btn btn-dark btn-sm" id="saveBtn">保存设置</button></div>
+      <div class="card" style="padding:8px 18px"><div id="mlist"></div></div>
+      <div class="disclaimer mt16"><span>ℹ️</span>关闭的功能会从对应端导航中消失,直接访问也会被拦回;保存后全店所有设备生效。老板端核心(看板/审计/合规/设置)始终可用。</div>`;
+    const el=U.qs('#mlist',c);
+    function draw(){
+      el.innerHTML=Object.keys(work).map(k=>{
+        const m=work[k];
+        const chips=['owner','manager','staff'].map(r=>`<button class="pill ${m.roles.includes(r)?'ok':'ghost'}" data-role="${k}:${r}" style="cursor:pointer">${roleNames[r]}</button>`).join(' ');
+        return `<div class="li" style="flex-wrap:wrap;gap:10px">
+          <div class="meta" style="min-width:150px"><b>${m.label}</b><span style="opacity:${m.on?1:.5}">${m.on?'已启用':'已关闭'}</span></div>
+          <div class="row gap6 center wrap">${chips}
+            <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;cursor:pointer"><input type="checkbox" data-on="${k}" ${m.on?'checked':''} style="width:22px;height:22px"> 启用</label>
+          </div></div>`;
+      }).join('');
+      U.qsa('[data-role]',el).forEach(b=>b.onclick=()=>{ const [k,r]=b.dataset.role.split(':'); const arr=work[k].roles; const i=arr.indexOf(r); if(i>=0) arr.splice(i,1); else arr.push(r); draw(); });
+      U.qsa('[data-on]',el).forEach(ch=>ch.onchange=()=>{ work[ch.dataset.on].on=ch.checked; draw(); });
+    }
+    draw();
+    U.qs('#saveBtn',c).onclick=async()=>{
+      await MKR.features.save(work);
+      await MKR.audit.log({action:'settings.update', desc:'更新系统设置 / 权限'});
+      U.toast('设置已保存,全店生效','green');
+    };
+  }
 
   // ---------- 看板 ----------
   async function dashboard(c){
@@ -63,10 +97,10 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     c.innerHTML = `
       <div class="section-head"><div><h2>核心看板</h2><p>系统平时静默运行，出问题才打扰你</p></div></div>
       <div class="grid g4" style="margin-bottom:18px">
-        <div class="card stat"><div class="k">📈 今日营业额</div><div class="v">${U.money0(m.revenue)}</div><div class="delta up">实时统计</div></div>
-        <div class="card stat"><div class="k">💵 盲对账差异</div><div class="v">${m.variance==null?'—':(m.variance>=0?'+':'')+U.money0(m.variance)}</div><div class="delta ${vClass}">${m.variance==null?'今日未对账':(Math.abs(m.variance)<=20?'正常':'超阈值')}</div></div>
-        <div class="card stat"><div class="k">🧾 今日订单</div><div class="v">${m.count}<small> 单</small></div><div class="delta flat">已收款</div></div>
-        <div class="card stat"><div class="k">🚨 未读警报</div><div class="v" style="color:${m.alerts.length?'var(--red)':'inherit'}">${m.alerts.length}</div><div class="delta flat">${m.alerts.length?'需关注':'一切正常'}</div></div>
+        <a class="card stat clickable" href="#/owner/report"><div class="k">📈 今日营业额</div><div class="v">${U.money0(m.revenue)}</div><div class="delta up">实时统计 ›</div></a>
+        <a class="card stat clickable" href="#/owner/report"><div class="k">💵 盲对账差异</div><div class="v">${m.variance==null?'—':(m.variance>=0?'+':'')+U.money0(m.variance)}</div><div class="delta ${vClass}">${m.variance==null?'今日未对账':(Math.abs(m.variance)<=20?'正常':'超阈值')} ›</div></a>
+        <a class="card stat clickable" href="#/owner/report"><div class="k">🧾 今日订单</div><div class="v">${m.count}<small> 单</small></div><div class="delta flat">查看日报 ›</div></a>
+        <a class="card stat clickable" href="#/owner/alerts"><div class="k">🚨 未读警报</div><div class="v" style="color:${m.alerts.length?'var(--red)':'inherit'}">${m.alerts.length}</div><div class="delta flat">${m.alerts.length?'需关注 ›':'一切正常 ›'}</div></a>
       </div>
       <div class="grid g2" style="align-items:start">
         <div class="card" style="padding:20px">
@@ -76,9 +110,9 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         <div class="card" style="padding:20px">
           <div class="section-title">📩 今日速览<a href="#/owner/report" class="faint" style="font-size:12px">完整日报 →</a></div>
           <div class="list">
-            <div class="li"><div class="ava">💰</div><div class="meta"><b>${U.money(m.revenue)}</b><span>今日营业额</span></div></div>
-            <div class="li"><div class="ava">💵</div><div class="meta"><b>${m.variance==null?'待对账':(m.variance>=0?'+':'')+U.money(m.variance)}</b><span>现金盲对账差异</span></div></div>
-            <div class="li"><div class="ava">📅</div><div class="meta"><b>8 桌</b><span>明日预订（示例）</span></div></div>
+            <a class="li clickable" href="#/owner/report"><div class="ava">💰</div><div class="meta"><b>${U.money(m.revenue)}</b><span>今日营业额</span></div><span class="faint">›</span></a>
+            <a class="li clickable" href="#/owner/report"><div class="ava">💵</div><div class="meta"><b>${m.variance==null?'待对账':(m.variance>=0?'+':'')+U.money(m.variance)}</b><span>现金盲对账差异</span></div><span class="faint">›</span></a>
+            <a class="li clickable" href="#/owner/compliance"><div class="ava">📅</div><div class="meta"><b>8 桌</b><span>明日预订（示例）</span></div><span class="faint">›</span></a>
           </div>
         </div>
       </div>

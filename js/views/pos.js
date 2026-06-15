@@ -28,7 +28,7 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
         <div class="section-head">
           <div><h2>点餐收银 POS</h2><p>快速加单 · 收款找零 · 打烊盲对账防偷钱</p></div>
           <div class="row gap8 wrap">
-            <button class="btn btn-ghost btn-sm" id="blindBtn">🥁 打烊盲对账</button>
+            ${(MKR.features && MKR.features.can('blinddrop', MKR.auth.current().role))?'<button class="btn btn-ghost btn-sm" id="blindBtn">🥁 打烊盲对账</button>':''}
             <button class="btn btn-ghost btn-sm" id="ordersBtn">📋 今日订单</button>
           </div>
         </div>
@@ -129,7 +129,7 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
         }
       };
       U.qs('#payBtn',container).onclick = ()=> payModal(container, drawCart, ()=>{ cart=[]; discountPct=0; MKR.db.draft.clear('pos-cart'); MKR.net.setDirty(false); drawCart(); });
-      U.qs('#blindBtn',container).onclick = ()=> blindDrop(container);
+      const _bb=U.qs('#blindBtn',container); if(_bb) _bb.onclick = ()=> blindDrop(container);
       U.qs('#ordersBtn',container).onclick = ()=> ordersModal();
 
       // 暴露给收款流程

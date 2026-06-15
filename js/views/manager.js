@@ -16,12 +16,12 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
   MKR.portals.manager = {
     home:'schedule', subtitle:'执行业务与带团队 · 排班 / 招人 / 审核',
     nav:[
-      {id:'schedule', label:'智能排班', em:'📅', short:'排班'},
-      {id:'hire',     label:'一键招人', em:'➕', short:'招人'},
-      {id:'tasks',    label:'任务清单', em:'✅', short:'任务'},
-      {id:'swaps',    label:'换班 / SOS', em:'🔁', short:'换班'},
-      {id:'pos',      label:'点餐收银', em:'🧾', short:'收银'},
-      {id:'kds',      label:'后厨看板', em:'📺', short:'后厨'},
+      {id:'schedule', label:'智能排班', em:'📅', short:'排班', feature:'schedule'},
+      {id:'hire',     label:'一键招人', em:'➕', short:'招人', feature:'hire'},
+      {id:'tasks',    label:'任务清单', em:'✅', short:'任务', feature:'tasks'},
+      {id:'swaps',    label:'换班 / SOS', em:'🔁', short:'换班', feature:'swaps'},
+      {id:'pos',      label:'点餐收银', em:'🧾', short:'收银', feature:'pos'},
+      {id:'kds',      label:'后厨看板', em:'📺', short:'后厨', feature:'kds'},
     ],
     async badges(){
       const swaps = (await MKR.db.getAll('swaps')).filter(s=>s.status==='pending').length;

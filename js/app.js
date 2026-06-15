@@ -7,6 +7,7 @@
   if(sess){
     await MKR.db.initSync();          // 已登录 → 拉云端(带鉴权)+ 订阅实时
     try{ await MKR.seed.ensure(); }catch(e){}
+    try{ await MKR.features.load(); }catch(e){}   // 加载功能开关/权限
     MKR.notify.start(sess.role);      // 通知/催班监听
   }
 
