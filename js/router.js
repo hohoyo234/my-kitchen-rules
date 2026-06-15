@@ -11,8 +11,12 @@ window.MKR = window.MKR || {};
 
   async function render(){
     const root = document.getElementById('root');
-    const sess = MKR.auth.current();
     let { role, section, arg } = parse();
+
+    // 顾客端公开路由(免登录):#/order/<桌号>
+    if(role==='order'){ return MKR.customer.render(root, section); }
+
+    const sess = MKR.auth.current();
 
     // 未登录 → 登录页
     if(role==='login' || !sess){

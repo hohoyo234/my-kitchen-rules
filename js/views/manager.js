@@ -22,6 +22,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       {id:'swaps',    label:'换班 / SOS', em:'🔁', short:'换班', feature:'swaps'},
       {id:'pos',      label:'点餐收银', em:'🧾', short:'收银', feature:'pos'},
       {id:'kds',      label:'后厨看板', em:'📺', short:'后厨', feature:'kds'},
+      {id:'qr',       label:'桌码点餐', em:'📱', short:'桌码', feature:'qrorder'},
     ],
     async badges(){
       const swaps = (await MKR.db.getAll('swaps')).filter(s=>s.status==='pending').length;
@@ -30,6 +31,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     async view(section, c){
       if(section==='pos') return MKR.views.pos.render(c);
       if(section==='kds') return MKR.views.kds.render(c);
+      if(section==='qr') return qrcodes(c);
       if(section==='schedule') return schedule(c);
       if(section==='hire') return hire(c);
       if(section==='tasks') return tasks(c);
@@ -328,5 +330,28 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         sos=(await MKR.db.getAll('sos')).filter(s=>s.status!=='closed'); cl(); drawSos(); U.toast('SOS 已推送给所有空闲员工','green');
       }}]});
     };
+  }
+
+  // ---------- 桌码点餐(生成各桌二维码)----------
+  async function qrcodes(c){
+    const base = location.origin + location.pathname;
+    const url = n => base + '#/order/' + n;
+    let n = 12;
+    function draw(){
+      c.innerHTML=`
+        <div class="section-head"><div><h2>桌码点餐</h2><p>每桌贴一个二维码,顾客扫码免登录点餐,直达后厨</p></div>
+          <div class="row gap8 center">桌数 <input class="input" id="tn" type="number" min="1" max="60" value="${n}" style="width:84px;height:44px"></div></div>
+        <div class="alert info" style="margin-bottom:16px"><span>📱</span><div>顾客扫码打开 <b>${base}#/order/桌号</b>,点单实时进后厨 KDS。把二维码打印贴在每张桌上即可。</div></div>
+        <div class="grid g4" id="qrgrid"></div>`;
+      const grid=U.qs('#qrgrid',c);
+      grid.innerHTML = Array.from({length:n},(_,i)=>i+1).map(t=>`
+        <div class="card" style="padding:16px;text-align:center">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=10&data=${encodeURIComponent(url(t))}" alt="桌 ${t}" style="width:100%;max-width:170px;border-radius:12px;background:#fff"/>
+          <b style="display:block;margin-top:8px">${t} 桌</b>
+          <a class="faint" style="font-size:11px" href="${url(t)}" target="_blank">预览点餐页 ↗</a>
+        </div>`).join('');
+      U.qs('#tn',c).onchange=(e)=>{ n=Math.max(1,Math.min(60,+e.target.value||12)); draw(); };
+    }
+    draw();
   }
 })();

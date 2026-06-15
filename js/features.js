@@ -15,6 +15,7 @@ window.MKR = window.MKR || {};
     swaps:    {label:'换班/SOS 审批', on:true, roles:['manager']},
     market:   {label:'员工换班市场',  on:true, roles:['staff']},
     availability:{label:'员工可上班时间',on:true, roles:['staff']},
+    qrorder:  {label:'桌码顾客扫码点餐',on:true, roles:['manager']},
     notify:   {label:'通知与催班提醒',on:true, roles:['owner','manager','staff']},
   };
 
