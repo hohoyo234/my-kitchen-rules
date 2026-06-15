@@ -23,8 +23,11 @@ window.MKR = window.MKR || {};
     }
   }catch(e){ console.warn('[supa] 初始化失败，转纯本地模式', e); }
 
+  // Web Push 公钥(公开,安全);私钥在 Supabase Edge Function 密钥里
+  const VAPID_PUBLIC = 'BLSuk74ERv84DMOor2yQcbDcMsLhP0V2whVy4R_WBLTF5ckK9_GbRYmZW8Zhmy97BNn_3j6k1zxSswglGIldEh8';
+
   MKR.supa = {
-    client, signupClient, URL, ANON, TABLES, enabled: !!client,
+    client, signupClient, URL, ANON, TABLES, VAPID_PUBLIC, enabled: !!client,
     // 用户名 → 合成邮箱（员工只需记用户名+密码）
     emailFor: (u)=> `${String(u||'').trim().toLowerCase()}@mkr.app`
   };

@@ -1,0 +1,14 @@
+{
+  "name": "My Kitchen Rules · 餐厅全能管家",
+  "short_name": "My Kitchen",
+  "description": "餐厅全能管家系统 — 三端协作、实时同步",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F6F2EC",
+  "theme_color": "#211E1B",
+  "icons": [
+    { "src": "assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

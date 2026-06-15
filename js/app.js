@@ -1,6 +1,7 @@
 /* ===== 启动 ===== */
 (async function(){
   MKR.net.init();
+  MKR.notify.registerSW();          // 注册 Service Worker(PWA + 离线外壳 + 后台推送)
 
   // 恢复登录态(真实 Supabase 会话)
   const sess = await MKR.auth.restore();

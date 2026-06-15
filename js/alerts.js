@@ -7,7 +7,10 @@ window.MKR = window.MKR || {};
     async raise({key, level='amber', type='', title, desc}){
       const all = await MKR.db.getAll('alerts');
       if(key && all.some(a=>a.key===key && !a.read)) return null;
-      return MKR.db.put('alerts',{key, level, type, title, desc, read:false, ts:Date.now()});
+      const saved = await MKR.db.put('alerts',{key, level, type, title, desc, read:false, ts:Date.now()});
+      // 主动推送给老板(关掉 App 也能收;后端未部署时静默降级)
+      if(MKR.notify && MKR.notify.push) MKR.notify.push({role:'owner'}, (level==='red'?'🚨 ':'🔔 ')+(title||'异常警报'), desc||'', 'al');
+      return saved;
     },
     // 班次的计划开始时间戳（本周对应星期 + HH:MM）
     shiftStartTs(shift){
