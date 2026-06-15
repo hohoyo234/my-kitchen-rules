@@ -14,6 +14,7 @@ window.MKR = window.MKR || {};
     tasks:    {label:'任务清单',      on:true, roles:['manager','staff']},
     swaps:    {label:'换班/SOS 审批', on:true, roles:['manager']},
     market:   {label:'员工换班市场',  on:true, roles:['staff']},
+    availability:{label:'员工可上班时间',on:true, roles:['staff']},
     notify:   {label:'通知与催班提醒',on:true, roles:['owner','manager','staff']},
   };
 
@@ -30,10 +31,11 @@ window.MKR = window.MKR || {};
     },
     get(){ return _cache || DEFAULTS; },
     config(key){ return (_cache||DEFAULTS)[key]; },
-    // 该模块是否对某角色开放
+    // 该模块是否对某角色开放(老板是超级管理员,可见所有已启用模块)
     can(key, role){
       const m = (_cache||DEFAULTS)[key];
       if(!m) return true;                 // 未登记的一律放行
+      if(role==='owner') return !!m.on;   // 老板直通(不受角色限制)
       return !!m.on && (!role || (m.roles||[]).includes(role));
     },
     async save(modules){

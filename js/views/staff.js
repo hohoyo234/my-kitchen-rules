@@ -8,6 +8,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     home:'my', subtitle:'傻瓜化执行 · 看班 / 打卡 / 抢单',
     nav:[
       {id:'my',     label:'我的班表', em:'📅', short:'班表'},
+      {id:'availability', label:'可上班时间', em:'🗓️', short:'可上班', feature:'availability'},
       {id:'tasks',  label:'今日任务', em:'✅', short:'任务', feature:'tasks'},
       {id:'market', label:'换班市场', em:'🔁', short:'换班', feature:'market'},
       {id:'me',     label:'我的资料', em:'🪪', short:'资料'},
@@ -18,11 +19,36 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     },
     async view(section,c){
       if(section==='my') return my(c);
+      if(section==='availability') return availability(c);
       if(section==='tasks') return tasks(c);
       if(section==='market') return market(c);
       if(section==='me') return me(c);
     }
   };
+
+  // ---------- 可上班时间 ----------
+  const AVAIL_OPTS=[['off','不可','var(--red-soft)'],['am','早班 09-15','var(--blue-soft)'],['pm','晚班 15-22','var(--accent-soft)'],['all','全天 09-22','var(--green-soft)']];
+  async function availability(c){
+    const sess=MKR.auth.current();
+    const me=await MKR.db.get('users',sess.id)||{};
+    const av=Object.assign({}, me.availability||{});   // {0..6:'off|am|pm|all'}
+    function draw(){
+      c.innerHTML=`
+        <div class="section-head"><div><h2>可上班时间</h2><p>选好你每天能来的时段,经理"一键排班"会优先按你填的来排</p></div>
+          <button class="btn btn-dark btn-sm" id="saveAv">保存</button></div>
+        <div class="card" style="padding:12px 18px"><div id="avlist"></div></div>
+        <div class="disclaimer mt16"><span>🗓️</span>这只是你的"可上班意向",最终班表以经理排班为准。</div>`;
+      const el=U.qs('#avlist',c);
+      el.innerHTML=DAYS.map((d,i)=>{
+        const cur=av[i]||'off';
+        const opts=AVAIL_OPTS.map(([v,label])=>`<button class="pill ${cur===v?'ok':'ghost'}" data-set="${i}:${v}" style="cursor:pointer">${label}</button>`).join(' ');
+        return `<div class="li" style="flex-wrap:wrap;gap:8px"><div class="meta" style="min-width:70px"><b>${d}</b></div><div class="row gap6 wrap">${opts}</div></div>`;
+      }).join('');
+      U.qsa('[data-set]',el).forEach(b=>b.onclick=()=>{ const [i,v]=b.dataset.set.split(':'); av[i]=v; draw(); });
+    }
+    draw();
+    U.qs('#saveAv',c).onclick=async()=>{ await MKR.db.put('users',{id:sess.id, availability:av}); U.toast('可上班时间已保存','green'); };
+  }
 
   // ---------- 我的班表 ----------
   async function my(c){

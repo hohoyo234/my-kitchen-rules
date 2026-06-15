@@ -42,6 +42,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       {id:'labor',     label:'人工成本', em:'💰', short:'成本'},
       {id:'team',      label:'团队管理', em:'👥', short:'团队'},
       {id:'compliance',label:'合规守护', em:'🛡️', short:'合规'},
+      {id:'switch',    label:'切换视图', em:'👁', short:'切换'},
       {id:'settings',  label:'系统设置', em:'⚙️', short:'设置'},
     ],
     async badges(){ const a=(await MKR.db.getAll('alerts')).filter(x=>!x.read && x.level==='red').length; return a?{alerts:a}:{}; },
@@ -53,9 +54,28 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       if(section==='labor') return labor(c);
       if(section==='team') return team(c);
       if(section==='compliance') return compliance(c);
+      if(section==='switch') return switchView(c);
       if(section==='settings') return settings(c);
     }
   };
+
+  // ---------- 切换视图(老板超级管理员,可进入任意端预览)----------
+  function switchView(c){
+    const card=(href,em,title,desc)=>`<a class="card clickable" href="${href}" style="padding:22px;display:block">
+      <div style="font-size:30px">${em}</div><b style="font-size:17px;display:block;margin-top:8px">${title}</b>
+      <span class="muted" style="font-size:13px">${desc}</span></a>`;
+    c.innerHTML=`
+      <div class="section-head"><div><h2>切换视图</h2><p>老板可进入任意端预览,体验员工/经理看到的界面</p></div></div>
+      <div class="grid g3">
+        ${card('#/owner/dashboard','👑','老板端','核心看板 · 你现在的端')}
+        ${card('#/manager/schedule','📋','经理端 · 排班','智能排班 / 招人 / 审核')}
+        ${card('#/manager/pos','🧾','收银 POS','点餐收银 · 盲对账')}
+        ${card('#/manager/kds','📺','后厨 KDS','传菜看板')}
+        ${card('#/staff/my','🧑‍🍳','员工端 · 班表','打卡 / 可上班时间 / 抢单')}
+        ${card('#/staff/availability','🗓️','员工 · 可上班时间','员工填写哪天能来')}
+      </div>
+      <div class="disclaimer mt16"><span>👁</span>进入其它端后,顶部会显示「老板预览」提示,点"返回老板端"即可回来。</div>`;
+  }
 
   // ---------- 系统设置(功能开关 + 角色权限)----------
   async function settings(c){

@@ -62,7 +62,8 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       const over = pct > (settings.laborPctThreshold||0.28);
 
       c.innerHTML = `
-        <div class="section-head"><div><h2>智能排班引擎</h2><p>拖拽即可排班 · 实时显示薪资占比 · 学生签工时硬卡控</p></div></div>
+        <div class="section-head"><div><h2>智能排班引擎</h2><p>一键按员工可上班时间自动排 · 可拖拽调整 · 学生签工时硬卡控</p></div>
+          <button class="btn btn-accent btn-sm" id="autoBtn">⚡ 一键智能排班</button></div>
         <div class="grid g3 mt8" style="margin-bottom:18px">
           <div class="card stat"><div class="k">💰 本周排班总薪资</div><div class="v">${U.money0(wage)}</div><div class="delta flat">参考值，发薪前需确认</div></div>
           <div class="card stat"><div class="k">📊 占预估营业额</div><div class="v ${over?'':''}" style="color:${over?'var(--red)':'inherit'}">${(pct*100).toFixed(0)}<small>%</small></div><div class="bar"><i style="width:${Math.min(100,pct*100*2)}%;background:${over?'var(--red)':'var(--accent)'}"></i></div></div>
@@ -104,6 +105,38 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       U.qsa('[data-rm]',c).forEach(b=> b.onclick=async(e)=>{ e.stopPropagation();
         await MKR.db.remove('shifts', b.dataset.rm); await MKR.audit.log({action:'shift.remove', desc:'删除排班'});
         shifts = await MKR.db.getAll('shifts'); draw(); });
+      const ab=U.qs('#autoBtn',c); if(ab) ab.onclick=autoSchedule;
+    }
+
+    // 一键智能排班:按员工"可上班时间" + 学生签上限,自动生成本周班表
+    async function autoSchedule(){
+      if(!(await U.confirm('一键智能排班','将清空本周现有排班,按员工填写的"可上班时间"重新自动生成。继续?',{ok:'生成'}))) return;
+      const SLOTS=[{start:'09:00',end:'15:00',k:'am',h:6},{start:'15:00',end:'22:00',k:'pm',h:7}];
+      const fits=(av,k)=> av==='all' || av===k;          // 该时段是否可上
+      const hoursOf=id=>shifts.filter(s=>s.staffId===id).reduce((t,s)=>t+hrs(s.start,s.end),0);
+      // 清空本周
+      for(const s of [...shifts]) await MKR.db.remove('shifts', s.id);
+      shifts=[];
+      const load={}; staff.forEach(s=>load[s.id]=0);     // 累计已排工时
+      let placed=0, gaps=0;
+      for(let day=0; day<7; day++){
+        for(const slot of SLOTS){
+          // 候选:该天该时段可上 + 不超学生签上限
+          const cands=staff.filter(s=>{
+            const av=(s.availability&&s.availability[day])||'all';   // 未填默认全天可
+            if(!fits(av,slot.k)) return false;
+            if(s.visa==='student' && (load[s.id]+slot.h) > settings.visaCapFortnight) return false;
+            return true;
+          }).sort((a,b)=>load[a.id]-load[b.id]);          // 谁排得少优先(均衡)
+          if(!cands.length){ gaps++; continue; }
+          const pick=cands[0];
+          await MKR.db.put('shifts',{staffId:pick.id, day, start:slot.start, end:slot.end});
+          load[pick.id]+=slot.h; placed++;
+        }
+      }
+      await MKR.audit.log({action:'shift.create', desc:`一键智能排班 · 生成 ${placed} 个班次`});
+      shifts=await MKR.db.getAll('shifts'); draw();
+      U.toast(`已生成 ${placed} 个班次${gaps?` · ${gaps} 个空缺无人可排`:''}`,'green');
     }
 
     function addShift(day){
