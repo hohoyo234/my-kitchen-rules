@@ -46,6 +46,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         if(!res.ok){ err.textContent='⚠️ '+res.msg; err.classList.remove('hidden'); btn.disabled=false; btn.textContent='登录'; return; }
         btn.textContent='加载数据…';
         try{ await MKR.db.initSync(); await MKR.seed.ensure(); }catch(e){}
+        try{ await MKR.notify.enable(); MKR.notify.start(res.user.role); }catch(e){}  // 登录手势中申请通知权限
         location.hash = `#/${res.user.role}/${MKR.portals[res.user.role].home}`;
       }
       btn.onclick=doLogin;

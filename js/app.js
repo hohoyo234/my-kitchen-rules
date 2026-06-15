@@ -7,6 +7,7 @@
   if(sess){
     await MKR.db.initSync();          // 已登录 → 拉云端(带鉴权)+ 订阅实时
     try{ await MKR.seed.ensure(); }catch(e){}
+    MKR.notify.start(sess.role);      // 通知/催班监听
   }
 
   // 离职熔断「瞬间」生效：被设为离职 → 立即强制下线

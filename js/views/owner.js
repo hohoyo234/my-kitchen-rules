@@ -204,9 +204,10 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     async function offboard(id){
       const u=users.find(x=>x.id===id);
       if(await U.confirm('一键安全离职熔断',`确定将 ${u.name} 标记为已离职？其账号将被【数据库层停用】，立即无法访问任何数据，合规数据加密留存 7 年。`,{ok:'确认熔断',danger:true})){
-        await MKR.db.put('users',{id,offboarded:true});
+        const now=Date.now();
+        await MKR.db.put('users',{id,offboarded:true, archivedAt:now, retentionUntil: now + 7*365*24*3600*1000});
         if(MKR.supa.client) await MKR.supa.client.from('profiles').update({active:false}).eq('staff_id',id);
-        await MKR.audit.log({action:'staff.offboard',desc:`离职熔断 · ${u.name}`});
+        await MKR.audit.log({action:'staff.offboard',desc:`离职熔断 · ${u.name}（合规留存至 ${new Date(now+7*365*24*3600*1000).toISOString().slice(0,10)}）`});
         users=(await MKR.db.getAll('users')).filter(x=>x.role==='staff'); draw();
         U.toast(`${u.name} 权限已熔断`,'red');
       }
@@ -233,6 +234,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const superDue=wage*settings.superRate;
     const stu=staff.filter(s=>s.visa==='student');
     const tasks=(await MKR.db.getAll('tasks')).filter(t=>t.date===U.todayISO());
+    const archived=(await MKR.db.getAll('users')).filter(u=>u.role==='staff'&&u.offboarded);
 
     c.innerHTML=`
       <div class="section-head"><div><h2>合规守护</h2><p>Super 提醒 · 签证工时 · 食品安全审计报告</p></div></div>
@@ -259,6 +261,17 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         <div class="row gap8 mt12 wrap">
           <button class="btn btn-dark btn-sm" id="exportFood">📄 导出今日食品安全记录</button>
           <button class="btn btn-ghost btn-sm" id="exportCsv">📊 导出营业 / 工资 CSV</button>
+        </div>
+      </div>
+      <div class="card mt16" style="padding:22px">
+        <div class="section-title">🗄️ 离职员工合规数据留存（7 年）</div>
+        <p class="muted" style="font-size:14px">离职员工的资料不会删除，按澳洲审计要求加密留存 7 年；TFN 等敏感字段仍仅老板可调取。</p>
+        <div class="list mt8">
+          ${archived.length? archived.map(u=>{
+            const ru=u.retentionUntil? new Date(u.retentionUntil).toISOString().slice(0,10):'—';
+            const au=u.archivedAt? new Date(u.archivedAt).toISOString().slice(0,10):'—';
+            return `<div class="li"><div class="ava">🗄️</div><div class="meta"><b>${U.esc(u.name)}</b><span>离职于 ${au} · 数据已加密留存</span></div><span class="pill ghost">留存至 ${ru}</span></div>`;
+          }).join('') : '<div class="empty"><div class="em">🗄️</div><p>暂无离职归档</p></div>'}
         </div>
       </div>
       <div class="disclaimer mt16"><span>⚖️</span>本系统提供数据汇总与导出，不直接对接 ATO、不提供税务建议；工资与税务最终数字以会计师 / 雇主确认为准。</div>

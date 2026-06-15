@@ -132,10 +132,12 @@ window.MKR = window.MKR || {};
 
     async put(t,obj){
       if(!obj.id){ obj.id=MKR.util.uid(t.slice(0,3)); obj.createdAt=obj.createdAt||Date.now(); }
-      obj.updatedAt=Date.now();
-      await lput(t,obj); emit(t);
-      pushUpsert(t,obj);
-      return obj;
+      // 合并:传入部分字段时，保留原记录其它字段(避免部分更新覆盖整行)
+      const existing = await lget(t, obj.id);
+      const merged = {...(existing||{}), ...obj, updatedAt:Date.now()};
+      await lput(t,merged); emit(t);
+      pushUpsert(t,merged);
+      return merged;
     },
     async remove(t,id){ await ldel(t,id); emit(t); pushDelete(t,id); return true; },
     async append(t,obj){
