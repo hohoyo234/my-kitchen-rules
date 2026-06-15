@@ -180,26 +180,60 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const onboard=await MKR.db.getAll('onboarding');
     function visaHours(id){ return shifts.filter(s=>s.staffId===id).reduce((t,s)=>t+MKR.pay.hours(s.start,s.end),0); }
 
+    const empLabel=e=>({casual:'Casual 临时工',parttime:'Part-time 兼职',fulltime:'Full-time 全职'})[e]||e||'—';
+    const round1=n=>Math.round((n||0)*10)/10;
+
     function draw(){
       c.innerHTML=`
-        <div class="section-head"><div><h2>团队管理</h2><p>离职一键熔断 · TFN 加密调取 · 签证工时总览</p></div></div>
+        <div class="section-head"><div><h2>团队管理</h2><p>点员工查看完整资料 · 离职一键熔断 · TFN 加密调取</p></div></div>
         <div class="card" style="padding:8px 18px"><div class="list" id="tlist"></div></div>
         <div class="disclaimer mt16"><span>🔒</span>仅老板角色可调取 TFN（每次调取均记入审计日志）；离职员工合规数据加密留存 7 年备审计。</div>`;
       const el=U.qs('#tlist',c);
       el.innerHTML=users.map(u=>{
-        const h=visaHours(u.id); const near=u.visa==='student'&&h>=settings.visaCapFortnight-6;
-        const ob=onboard.find(o=>o.userId===u.id);
-        return `<div class="li"><div class="ava">${u.emoji||U.initials(u.name)}</div>
+        const h=round1(visaHours(u.id)); const near=u.visa==='student'&&h>=settings.visaCapFortnight-6;
+        return `<div class="li" data-detail="${u.id}" style="cursor:pointer">
+          <div class="ava">${u.emoji||U.initials(u.name)}</div>
           <div class="meta"><b>${U.esc(u.name)} ${u.offboarded?'<span class="pill danger">已离职</span>':''}</b>
-            <span>${u.position||({casual:'Casual',parttime:'兼职',fulltime:'全职'})[u.employment]||''} ${u.visa==='student'?`· 学生签 <b style="color:${near?'var(--red)':'inherit'}">${h}/${settings.visaCapFortnight}h</b>`:''} ${u.onboarded?'· 已入职':'· 待入职'}</span></div>
-          <div class="row gap6">
-            ${ob?`<button class="btn btn-ghost btn-sm" data-tfn="${u.id}">🪪 调取 TFN</button>`:''}
-            ${u.offboarded?`<button class="btn btn-ghost btn-sm" data-restore="${u.id}">恢复</button>`:`<button class="btn btn-danger btn-sm" data-off="${u.id}">离职熔断</button>`}
-          </div></div>`;
+            <span>${U.esc(u.position||empLabel(u.employment))} ${u.visa==='student'?`· 学生签 <b style="color:${near?'var(--red)':'inherit'}">${h}/${settings.visaCapFortnight}h</b>`:''} · ${u.onboarded?'已入职':'待入职'}</span></div>
+          <span class="faint" style="font-size:22px;line-height:1">›</span></div>`;
       }).join('');
-      U.qsa('[data-off]',el).forEach(b=>b.onclick=()=>offboard(b.dataset.off));
-      U.qsa('[data-restore]',el).forEach(b=>b.onclick=async()=>{ await MKR.db.put('users',{id:b.dataset.restore,offboarded:false}); if(MKR.supa.client) await MKR.supa.client.from('profiles').update({active:true}).eq('staff_id',b.dataset.restore); users=(await MKR.db.getAll('users')).filter(u=>u.role==='staff'); draw(); });
-      U.qsa('[data-tfn]',el).forEach(b=>b.onclick=()=>viewTfn(b.dataset.tfn));
+      U.qsa('[data-detail]',el).forEach(b=>b.onclick=()=>staffDetail(b.dataset.detail));
+    }
+
+    function staffDetail(id){
+      const u=users.find(x=>x.id===id); const ob=onboard.find(o=>o.userId===id);
+      const h=round1(visaHours(id));
+      const row=(k,v)=>`<div class="li"><div class="meta"><span>${k}</span><b style="font-size:15px">${v}</b></div></div>`;
+      const body=U.el(`<div>
+        <div class="row center gap8" style="margin-bottom:8px">
+          <div class="ava" style="width:46px;height:46px;border-radius:13px;background:var(--accent-soft);color:var(--accent-ink);display:grid;place-items:center;font-size:20px">${u.emoji||U.initials(u.name)}</div>
+          <div><b style="font-size:17px">${U.esc(u.name)}</b> ${u.offboarded?'<span class="pill danger">已离职</span>':'<span class="pill ok">在职</span>'}
+            <div class="faint" style="font-size:12px">账号 ${U.esc(u.username||'—')}</div></div>
+        </div>
+        <div class="list">
+          ${row('职位', U.esc(u.position||'—'))}
+          ${row('工时类型', empLabel(u.employment))}
+          ${row('年龄', u.age!=null?u.age+' 岁':'—')}
+          ${row('基本时薪(参考)', U.money(u.baseRate||0)+' /h')}
+          ${row('签证', u.visa==='student'?('学生签 · 双周 '+h+'/'+settings.visaCapFortnight+'h'):'无')}
+          ${row('入职状态', u.onboarded?'已完成':'待填写')}
+          ${ob?row('Super 基金', U.esc(ob.superFund||'—')):''}
+          ${ob?row('银行 BSB/账号', U.esc((ob.bsb||'—')+' / '+(ob.acct||'—'))):''}
+          ${row('税号 TFN', ob?('<span id="tfnSlot">'+MKR.crypto.mask()+'</span> <button class="btn btn-ghost btn-sm" id="tfnBtn" style="margin-left:6px;min-height:32px;padding:0 12px">调取</button>'):'（员工未提交）')}
+          ${u.offboarded?row('离职日期', u.archivedAt?new Date(u.archivedAt).toISOString().slice(0,10):'—'):''}
+          ${u.offboarded?row('合规留存至', u.retentionUntil?new Date(u.retentionUntil).toISOString().slice(0,10):'—'):''}
+        </div>
+      </div>`);
+      const actions=[];
+      if(u.offboarded) actions.push({label:'恢复账号', class:'btn-green', onClick:async(close)=>{
+        await MKR.db.put('users',{id,offboarded:false,archivedAt:null,retentionUntil:null});
+        if(MKR.supa.client) await MKR.supa.client.from('profiles').update({active:true}).eq('staff_id',id);
+        users=(await MKR.db.getAll('users')).filter(x=>x.role==='staff'); close(); draw(); U.toast(u.name+' 已恢复','green'); }});
+      else actions.push({label:'离职熔断', class:'btn-danger', onClick:(close)=>{ close(); offboard(id); }});
+      actions.push({label:'关闭', class:'btn-ghost', onClick:c=>c()});
+      const m=U.modal('员工资料 · '+u.name, body, {actions});
+      const tb=body.querySelector('#tfnBtn');
+      if(tb) tb.onclick=async()=>{ const tfn=await MKR.crypto.dec(ob.tfnEnc); await MKR.audit.log({action:'tfn.view',desc:`调取 ${u.name} 的 TFN`}); const slot=body.querySelector('#tfnSlot'); if(slot) slot.textContent=tfn; tb.remove(); };
     }
     async function offboard(id){
       const u=users.find(x=>x.id===id);
@@ -211,16 +245,6 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         users=(await MKR.db.getAll('users')).filter(x=>x.role==='staff'); draw();
         U.toast(`${u.name} 权限已熔断`,'red');
       }
-    }
-    async function viewTfn(id){
-      const u=users.find(x=>x.id===id); const ob=onboard.find(o=>o.userId===id);
-      const tfn=await MKR.crypto.dec(ob.tfnEnc);
-      await MKR.audit.log({action:'tfn.view',desc:`调取 ${u.name} 的 TFN`});
-      U.modal('🪪 TFN 调取 · '+u.name, `
-        <div class="alert amber" style="margin-bottom:14px"><span>🔒</span><div>本次调取已记入审计日志。请勿截屏外传。</div></div>
-        <div class="field"><label>税号 TFN（已解密）</label><input class="input" value="${U.esc(tfn)}" readonly onclick="this.select()"></div>
-        <p class="faint" style="font-size:12px">加密方式：${ob.tfnEnc.startsWith('aes:')?'AES-GCM':'本地混淆'} · 仅老板角色可见。</p>`,
-        {actions:[{label:'关闭',class:'btn-dark',onClick:x=>x()}]});
     }
     draw();
   }
