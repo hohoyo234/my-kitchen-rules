@@ -1,34 +1,37 @@
-/* ===== Supabase 云端配置 =====
-   URL 和 anon key 都是「公开可用」的前端 key。机密永不放前端。
+/* ===== Supabase cloud configuration =====
+   The URL and anon key are "publicly usable" front-end keys. Secrets never live
+   in the front end.
 */
 window.MKR = window.MKR || {};
 (function(){
   const URL  = 'https://gopluilwaltawempixeg.supabase.co';
   const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvcGx1aWx3YWx0YXdlbXBpeGVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEwMzAsImV4cCI6MjA5Njk1NzAzMH0.hTH-YuxWjPKmJukq4hBo4NySMuxsRV7yWs86y6DhsqI';
 
-  const TABLES = ['users','menu','orders','shifts','tasks','swaps','sos','alerts','reconciliations','clockins','onboarding','audit','customer_feedback'];
+  const TABLES = ['kitchens','users','menu','orders','shifts','tasks','swaps','sos','alerts','reconciliations','clockins','onboarding','audit','customer_feedback'];
 
   let client=null, signupClient=null;
   try{
     if(window.supabase && window.supabase.createClient){
-      // 主客户端：保存会话（登录态）
+      // Primary client: persists the session (login state)
       client = window.supabase.createClient(URL, ANON, {
-        auth:{ persistSession:true, autoRefreshToken:true, storageKey:'mkr-auth' },
+        auth:{ persistSession:true, autoRefreshToken:true, storageKey:'mkr-auth', detectSessionInUrl:true, flowType:'pkce' },
         realtime:{ params:{ eventsPerSecond:10 } }
       });
-      // 副客户端：仅用于「经理建员工账号」时调用 signUp，不影响当前登录态
+      // Secondary client: only used when a manager creates a staff account via
+      // signUp, so it never disturbs the manager's own session.
       signupClient = window.supabase.createClient(URL, ANON, {
         auth:{ persistSession:false, autoRefreshToken:false, storageKey:'mkr-signup' }
       });
     }
-  }catch(e){ console.warn('[supa] 初始化失败，转纯本地模式', e); }
+  }catch(e){ console.warn('[supa] init failed, falling back to local-only mode', e); }
 
-  // Web Push 公钥(公开,安全);私钥在 Supabase Edge Function 密钥里
+  // Web Push public key (public, safe); the private key lives in the Supabase
+  // Edge Function secrets.
   const VAPID_PUBLIC = 'BLSuk74ERv84DMOor2yQcbDcMsLhP0V2whVy4R_WBLTF5ckK9_GbRYmZW8Zhmy97BNn_3j6k1zxSswglGIldEh8';
 
   MKR.supa = {
     client, signupClient, URL, ANON, TABLES, VAPID_PUBLIC, enabled: !!client,
-    // 用户名 → 合成邮箱（员工只需记用户名+密码）
+    // username -> synthetic email (staff only need to remember username + password)
     emailFor: (u)=> `${String(u||'').trim().toLowerCase()}@mkr.app`
   };
 })();

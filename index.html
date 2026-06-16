@@ -1,51 +1,50 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
-<title>My Kitchen Rules · 餐厅全能管家系统</title>
-<meta name="description" content="餐厅老板的全能管家——三端登录、点餐收银、盲对账、智能排班、合规守护。" />
+<title>My Kitchen Rules · All-in-one restaurant manager</title>
+<meta name="description" content="The all-in-one manager for restaurant owners — three-portal login, POS, blind drop, smart rostering, compliance guard." />
 <meta name="theme-color" content="#F6F2EC" />
 <link rel="manifest" href="assets/manifest.json" />
 <link rel="apple-touch-icon" href="assets/icon.svg" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="assets/css/styles.css?v=16" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="assets/css/styles.css?v=18" />
 </head>
 <body>
   <div id="root">
-    <div class="login-wrap"><div class="faint">正在启动 My Kitchen Rules…</div></div>
+    <div class="login-wrap"><div class="faint">Starting My Kitchen Rules…</div></div>
   </div>
 
-  <!-- 底层模块（顺序敏感，普通 script 共享 MKR 全局，支持 file:// 双击打开） -->
-  <script src="js/util.js?v=16"></script>
-  <script src="js/i18n.js?v=16"></script>
-  <!-- Supabase 云端 SDK + 配置（必须在 db.js 之前）-->
+  <!-- Base modules (order-sensitive; share the global MKR; works via file:// double-click) -->
+  <script src="js/util.js?v=18"></script>
+  <!-- Supabase cloud SDK + config (must load before db.js) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/supa.js?v=16"></script>
-  <script src="js/db.js?v=16"></script>
-  <script src="js/crypto.js?v=16"></script>
-  <script src="js/audit.js?v=16"></script>
-  <script src="js/pay.js?v=16"></script>
-  <script src="js/seed.js?v=16"></script>
-  <script src="js/auth.js?v=16"></script>
-  <script src="js/net.js?v=16"></script>
-  <script src="js/alerts.js?v=16"></script>
-  <script src="js/setup.js?v=16"></script>
-  <script src="js/notify.js?v=16"></script>
-  <script src="js/features.js?v=16"></script>
-  <!-- 视图 / 门户 -->
-  <script src="js/views/login.js?v=16"></script>
-  <script src="js/views/pos.js?v=16"></script>
-  <script src="js/views/kds.js?v=16"></script>
-  <script src="js/views/owner.js?v=16"></script>
-  <script src="js/views/manager.js?v=16"></script>
-  <script src="js/views/staff.js?v=16"></script>
-  <script src="js/views/customer.js?v=16"></script>
-  <!-- 路由 + 启动 -->
-  <script src="js/router.js?v=16"></script>
-  <script src="js/app.js?v=16"></script>
+  <script src="js/supa.js?v=18"></script>
+  <script src="js/db.js?v=18"></script>
+  <script src="js/crypto.js?v=18"></script>
+  <script src="js/audit.js?v=18"></script>
+  <script src="js/pay.js?v=18"></script>
+  <script src="js/seed.js?v=18"></script>
+  <script src="js/auth.js?v=18"></script>
+  <script src="js/net.js?v=18"></script>
+  <script src="js/alerts.js?v=18"></script>
+  <script src="js/setup.js?v=18"></script>
+  <script src="js/notify.js?v=18"></script>
+  <script src="js/features.js?v=18"></script>
+  <!-- Views / portals -->
+  <script src="js/views/login.js?v=18"></script>
+  <script src="js/views/pos.js?v=18"></script>
+  <script src="js/views/kds.js?v=18"></script>
+  <script src="js/views/owner.js?v=18"></script>
+  <script src="js/views/manager.js?v=18"></script>
+  <script src="js/views/staff.js?v=18"></script>
+  <script src="js/views/customer.js?v=18"></script>
+  <!-- Router + boot -->
+  <script src="js/router.js?v=18"></script>
+  <script src="js/app.js?v=18"></script>
 </body>
 </html>

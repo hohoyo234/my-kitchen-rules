@@ -1,5 +1,5 @@
-/* ===== Service Worker — 离线外壳 + 后台推送 ===== */
-const CACHE = 'mkr-cache-v13';
+/* ===== Service Worker — offline shell + background push ===== */
+const CACHE = 'mkr-cache-v14';
 
 self.addEventListener('install', e => self.skipWaiting());
 
@@ -8,7 +8,7 @@ self.addEventListener('activate', e => e.waitUntil((async () => {
   await self.clients.claim();
 })()));
 
-// 只缓存本站外壳(网络优先,断网回退缓存);不拦截 Supabase/CDN
+// Cache the site shell only (network-first, falls back to cache offline); never intercept Supabase/CDN
 self.addEventListener('fetch', e => {
   const req = e.request; if (req.method !== 'GET') return;
   const url = new URL(req.url); if (url.origin !== location.origin) return;
@@ -29,7 +29,7 @@ self.addEventListener('fetch', e => {
   })());
 });
 
-// 后台推送(关掉 App 也能收)
+// Background push (received even when the app is closed)
 self.addEventListener('push', e => {
   let d = { title: 'My Kitchen', body: '' };
   try { d = e.data.json(); } catch (_) { if (e.data) d.body = e.data.text(); }
