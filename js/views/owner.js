@@ -115,8 +115,13 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     c.innerHTML=`
       <div class="section-head"><div><h2>Settings</h2><p>Toggle modules · control which roles can access each one</p></div>
         <button class="btn btn-dark btn-sm" id="saveBtn">Save settings</button></div>
+      <div class="card" style="padding:14px 18px;margin-bottom:16px"><div class="li" style="border:none;padding:0">
+        <div class="meta"><b>System language</b><span>English / 简体中文</span></div>
+        ${MKR.i18n?MKR.i18n.switcher():''}
+      </div></div>
       <div class="card" style="padding:8px 18px"><div id="mlist"></div></div>
       <div class="disclaimer mt16"><span>ℹ️</span>Disabled features disappear from the matching portal's nav and direct access is blocked; saving applies to every device in the venue. Owner core (dashboard / audit / compliance / settings) is always available.</div>`;
+    if(MKR.i18n) MKR.i18n.bindSwitchers(c);
     const el=U.qs('#mlist',c);
     function draw(){
       el.innerHTML=Object.keys(work).map(k=>{

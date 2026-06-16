@@ -10,6 +10,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       root.innerHTML = `
       <div class="login-wrap">
         <div class="card login-card">
+          ${MKR.i18n?MKR.i18n.switcher():''}
           <div class="row center gap8"><div class="login-logo">M</div>
             <div><b style="font-size:18px">My Kitchen Rules</b><div class="faint" style="font-size:12.5px">Restaurant manager · Secure login</div></div></div>
 
@@ -40,6 +41,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         </div>
       </div>`;
 
+      if(MKR.i18n) MKR.i18n.bindSwitchers(root);
       const pick=U.qs('#rolePick',root), lu=U.qs('#lu',root), lp=U.qs('#lp',root), err=U.qs('#lerr',root), btn=U.qs('#lbtn',root);
       U.qsa('button[data-r]',pick).forEach(b=> b.onclick=()=>{
         U.qsa('button[data-r]',pick).forEach(x=>x.classList.remove('sel')); b.classList.add('sel');
