@@ -1,22 +1,24 @@
-/* ===== 功能开关 + 角色权限 =====
-   老板在「系统设置」里控制:每个模块开/关、哪些角色可用。
-   配置存 app_meta.settings.modules(随云端同步,多设备一致)。
-   导航与页面通过 MKR.features.can(key, role) 判断是否显示/可进入。
+/* ===== Feature switches + role permissions =====
+   The owner controls each module (on/off, which roles can use it) in Settings.
+   The config is stored in app_meta.settings.modules (synced to the cloud, so it
+   is consistent across devices).
+   Navigation and pages use MKR.features.can(key, role) to decide visibility.
 */
 window.MKR = window.MKR || {};
 (function(){
   const DEFAULTS = {
-    pos:      {label:'收银点餐 POS',  on:true, roles:['manager','staff']},
-    kds:      {label:'后厨看板 KDS',  on:true, roles:['manager','staff']},
-    blinddrop:{label:'打烊盲对账',    on:true, roles:['manager','staff']},
-    schedule: {label:'智能排班',      on:true, roles:['manager']},
-    hire:     {label:'一键招人',      on:true, roles:['manager']},
-    tasks:    {label:'任务清单',      on:true, roles:['manager','staff']},
-    swaps:    {label:'换班/SOS 审批', on:true, roles:['manager']},
-    market:   {label:'员工换班市场',  on:true, roles:['staff']},
-    availability:{label:'员工可上班时间',on:true, roles:['staff']},
-    qrorder:  {label:'桌码顾客扫码点餐',on:true, roles:['manager']},
-    notify:   {label:'通知与催班提醒',on:true, roles:['owner','manager','staff']},
+    pos:      {label:'POS / Ordering',     on:true, roles:['manager','staff']},
+    kds:      {label:'Kitchen Display',    on:true, roles:['manager','staff']},
+    menu:     {label:'Menu & Items',       on:true, roles:['manager']},
+    blinddrop:{label:'Blind drop',         on:true, roles:['manager','staff']},
+    schedule: {label:'Smart rostering',    on:true, roles:['manager']},
+    hire:     {label:'One-Click Add Users',on:true, roles:['manager']},
+    tasks:    {label:'Task checklist',      on:true, roles:['manager','staff']},
+    swaps:    {label:'Swap / SOS approval', on:true, roles:['manager']},
+    market:   {label:'Staff swap market',   on:true, roles:['staff']},
+    availability:{label:'Staff availability',on:true, roles:['staff']},
+    qrorder:  {label:'Table QR ordering',   on:true, roles:['manager']},
+    notify:   {label:'Notifications & nudges',on:true, roles:['owner','manager','staff']},
   };
 
   let _cache=null;
@@ -32,11 +34,11 @@ window.MKR = window.MKR || {};
     },
     get(){ return _cache || DEFAULTS; },
     config(key){ return (_cache||DEFAULTS)[key]; },
-    // 该模块是否对某角色开放(老板是超级管理员,可见所有已启用模块)
+    // Whether the module is open to a given role (owner is super admin — sees every enabled module)
     can(key, role){
       const m = (_cache||DEFAULTS)[key];
-      if(!m) return true;                 // 未登记的一律放行
-      if(role==='owner') return !!m.on;   // 老板直通(不受角色限制)
+      if(!m) return true;                 // unregistered modules are always allowed
+      if(role==='owner') return !!m.on;   // owner passes through (not role-restricted)
       return !!m.on && (!role || (m.roles||[]).includes(role));
     },
     async save(modules){

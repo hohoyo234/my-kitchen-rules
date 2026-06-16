@@ -1,8 +1,8 @@
-/* ===== 老板端 Owner Portal ===== */
+/* ===== Owner Portal ===== */
 window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
 (function(){
   const U = MKR.util;
-  const DAYS=['周一','周二','周三','周四','周五','周六','周日'];
+  const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const isToday = ts => new Date(ts).toISOString().slice(0,10)===U.todayISO();
 
   async function metrics(){
@@ -15,7 +15,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     return {orders:todays, revenue, variance, alerts, count:todays.length};
   }
 
-  // 扫描今日班次：计划开始已过 1 小时仍无打卡 → No Show 警报（去重）
+  // Scan today's shifts: planned start passed by 1h with no clock-in → No Show alert (deduped)
   async function noShowScan(){
     const todayIdx=(new Date().getDay()+6)%7;
     const shifts=(await MKR.db.getAll('shifts')).filter(s=>s.day===todayIdx);
@@ -26,25 +26,26 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       const startTs=MKR.alerts.shiftStartTs(s);
       if(now > startTs+60*60000 && !clockins.find(k=>k.shiftId===s.id)){
         const u=users.find(x=>x.id===s.staffId);
-        await MKR.alerts.raise({key:'noshow-'+s.id, level:'red', type:'noshow', title:'员工 No Show 风险',
-          desc:`${u?u.name:'员工'} 的 ${DAYS[s.day]} ${s.start} 班已过 1 小时仍未打卡`});
+        await MKR.alerts.raise({key:'noshow-'+s.id, level:'red', type:'noshow', title:'Staff No-Show risk',
+          desc:`${u?u.name:'A staff member'}'s ${DAYS[s.day]} ${s.start} shift is 1h past start with no clock-in`});
       }
     }
   }
 
   MKR.portals.owner = {
-    home:'dashboard', subtitle:'睡后管理 · 只看结果、只做审批',
+    home:'dashboard', subtitle:'Hands-off management — results & approvals only',
     nav:[
-      {id:'dashboard', label:'核心看板', em:'📊', short:'看板'},
-      {id:'report',    label:'每日日报', em:'📩', short:'日报'},
-      {id:'alerts',    label:'红色警报', em:'🚨', short:'警报'},
-      {id:'audit',     label:'操作审计', em:'🔍', short:'审计'},
-      {id:'labor',     label:'人工成本', em:'💰', short:'成本'},
-      {id:'team',      label:'团队管理', em:'👥', short:'团队'},
-      {id:'compliance',label:'合规守护', em:'🛡️', short:'合规'},
-      {id:'feedback',  label:'顾客反馈', em:'⭐', short:'反馈'},
-      {id:'switch',    label:'切换视图', em:'👁', short:'切换'},
-      {id:'settings',  label:'系统设置', em:'⚙️', short:'设置'},
+      {id:'dashboard', label:'Dashboard',    em:'📊', short:'Dash'},
+      {id:'report',    label:'Daily report', em:'📩', short:'Report'},
+      {id:'alerts',    label:'Alerts',       em:'🚨', short:'Alerts'},
+      {id:'audit',     label:'Audit log',    em:'🔍', short:'Audit'},
+      {id:'labor',     label:'Labor cost',   em:'💰', short:'Labor'},
+      {id:'team',      label:'Team',         em:'👥', short:'Team'},
+      {id:'kitchens',  label:'Super Admin',  em:'🏢', short:'Admin'},
+      {id:'compliance',label:'Compliance',   em:'🛡️', short:'Comply'},
+      {id:'feedback',  label:'Feedback',     em:'⭐', short:'Reviews'},
+      {id:'switch',    label:'Switch view',  em:'👁', short:'Switch'},
+      {id:'settings',  label:'Settings',     em:'⚙️', short:'Settings'},
     ],
     async badges(){ const a=(await MKR.db.getAll('alerts')).filter(x=>!x.read && x.level==='red').length; return a?{alerts:a}:{}; },
     async view(section,c,arg){
@@ -54,6 +55,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       if(section==='audit') return audit(c);
       if(section==='labor') return labor(c);
       if(section==='team') return team(c,arg);
+      if(section==='kitchens') return kitchens(c,arg);
       if(section==='compliance') return compliance(c);
       if(section==='feedback') return feedback(c);
       if(section==='switch') return switchView(c);
@@ -61,7 +63,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     }
   };
 
-  // ---------- 顾客反馈(差评内部拦截)----------
+  // ---------- Customer feedback (bad-review interception) ----------
   async function feedback(c){
     const all=await MKR.db.getAll('customer_feedback');
     const fbs=all.filter(f=>f.type==='review').sort((a,b)=>b.ts-a.ts);
@@ -69,60 +71,61 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const todayUrge=all.filter(f=>f.type==='urge' && new Date(f.ts).toISOString().slice(0,10)===U.todayISO()).length;
     const avg=fbs.length?(fbs.reduce((s,f)=>s+f.rating,0)/fbs.length).toFixed(1):'—';
     c.innerHTML=`
-      <div class="section-head"><div><h2>顾客反馈</h2><p>差评内部拦截 · 1-3 星留在内部由你处理,4-5 星已引导 Google 点评</p></div></div>
+      <div class="section-head"><div><h2>Customer feedback</h2><p>Bad reviews kept internal (1-3★) for you to handle; 4-5★ sent to Google</p></div></div>
       <div class="grid g3" style="margin-bottom:18px">
-        <div class="card stat"><div class="k">⭐ 平均评分</div><div class="v">${avg}</div><div class="delta flat">${fbs.length} 条评价</div></div>
-        <div class="card stat"><div class="k">😟 差评(1-3星)</div><div class="v" style="color:${bad.length?'var(--red)':'inherit'}">${bad.length}</div><div class="delta flat">已拦截在内部</div></div>
-        <div class="card stat"><div class="k">🔔 今日催菜</div><div class="v">${todayUrge}</div></div>
+        <div class="card stat"><div class="k">⭐ Average rating</div><div class="v">${avg}</div><div class="delta flat">${fbs.length} reviews</div></div>
+        <div class="card stat"><div class="k">😟 Bad (1-3★)</div><div class="v" style="color:${bad.length?'var(--red)':'inherit'}">${bad.length}</div><div class="delta flat">kept internal</div></div>
+        <div class="card stat"><div class="k">🔔 Urges today</div><div class="v">${todayUrge}</div></div>
       </div>
       <div class="card" style="padding:8px 18px"><div class="list">
         ${fbs.length? fbs.map(f=>`<div class="li">
           <div class="ava" style="background:${f.rating<=3?'var(--red-soft)':'var(--green-soft)'};color:${f.rating<=3?'var(--red)':'var(--green)'}">${f.rating}★</div>
-          <div class="meta"><b>${'★'.repeat(f.rating)}<span class="faint">${'★'.repeat(5-f.rating)}</span> · 桌 ${U.esc(f.table||'—')}</b>
-            <span>${U.esc(f.comment||'(无文字评价)')} · ${U.ago(f.ts)}</span></div>
-          ${f.rating<=3?'<span class="pill danger">差评</span>':'<span class="pill ok">好评</span>'}</div>`).join('')
-        :'<div class="empty"><div class="em">⭐</div><p>暂无顾客评价</p></div>'}
+          <div class="meta"><b>${'★'.repeat(f.rating)}<span class="faint">${'★'.repeat(5-f.rating)}</span> · table ${U.esc(f.table||'—')}</b>
+            <span>${U.esc(f.comment||'(no written review)')} · ${U.ago(f.ts)}</span></div>
+          ${f.rating<=3?'<span class="pill danger">Bad</span>':'<span class="pill ok">Good</span>'}</div>`).join('')
+        :'<div class="empty"><div class="em">⭐</div><p>No customer reviews yet</p></div>'}
       </div></div>
-      <div class="disclaimer mt16"><span>🛡️</span>1-3 星差评不会公开,只在这里给你看,便于私下联系顾客补救;4-5 星已引导去 Google 提升公开口碑。</div>`;
+      <div class="disclaimer mt16"><span>🛡️</span>1-3★ reviews are never public — shown only here so you can reach out privately; 4-5★ guests are guided to Google to boost public reputation.</div>`;
   }
 
-  // ---------- 切换视图(老板超级管理员,可进入任意端预览)----------
+  // ---------- Switch view (owner is super admin, can preview any portal) ----------
   function switchView(c){
     const card=(href,em,title,desc)=>`<a class="card clickable" href="${href}" style="padding:22px;display:block">
       <div style="font-size:30px">${em}</div><b style="font-size:17px;display:block;margin-top:8px">${title}</b>
       <span class="muted" style="font-size:13px">${desc}</span></a>`;
     c.innerHTML=`
-      <div class="section-head"><div><h2>切换视图</h2><p>老板可进入任意端预览,体验员工/经理看到的界面</p></div></div>
+      <div class="section-head"><div><h2>Switch view</h2><p>The owner can preview any portal and see exactly what staff / managers see</p></div></div>
       <div class="grid g3">
-        ${card('#/owner/dashboard','👑','老板端','核心看板 · 你现在的端')}
-        ${card('#/manager/schedule','📋','经理端 · 排班','智能排班 / 招人 / 审核')}
-        ${card('#/manager/pos','🧾','收银 POS','点餐收银 · 盲对账')}
-        ${card('#/manager/kds','📺','后厨 KDS','传菜看板')}
-        ${card('#/staff/my','🧑‍🍳','员工端 · 班表','打卡 / 可上班时间 / 抢单')}
-        ${card('#/staff/availability','🗓️','员工 · 可上班时间','员工填写哪天能来')}
+        ${card('#/owner/dashboard','👑','Owner','Dashboard · your current portal')}
+        ${card('#/manager/schedule','📋','Manager · Roster','Smart rostering / add users / review')}
+        ${card('#/manager/menu','🍔','Menu & Items','Add dishes / upload photos')}
+        ${card('#/manager/pos','🧾','POS','Ordering · blind drop')}
+        ${card('#/manager/kds','📺','Kitchen KDS','Live tickets')}
+        ${card('#/staff/my','🧑‍🍳','Staff · Shifts','Clock-in / availability / claim')}
+        ${card('#/staff/availability','🗓️','Staff · Availability','When staff can work')}
       </div>
-      <div class="disclaimer mt16"><span>👁</span>进入其它端后,顶部会显示「老板预览」提示,点"返回老板端"即可回来。</div>`;
+      <div class="disclaimer mt16"><span>👁</span>Inside another portal the top shows an "Owner preview" banner — tap "Back to Owner" to return.</div>`;
   }
 
-  // ---------- 系统设置(功能开关 + 角色权限)----------
+  // ---------- Settings (feature switches + role permissions) ----------
   async function settings(c){
     const mods = await MKR.features.load();
-    const roleNames={owner:'老板',manager:'经理',staff:'员工'};
+    const roleNames={owner:'Owner',manager:'Manager',staff:'Staff'};
     const work = JSON.parse(JSON.stringify(mods));
     c.innerHTML=`
-      <div class="section-head"><div><h2>系统设置</h2><p>开关功能模块 · 控制各角色可用范围</p></div>
-        <button class="btn btn-dark btn-sm" id="saveBtn">保存设置</button></div>
+      <div class="section-head"><div><h2>Settings</h2><p>Toggle modules · control which roles can access each one</p></div>
+        <button class="btn btn-dark btn-sm" id="saveBtn">Save settings</button></div>
       <div class="card" style="padding:8px 18px"><div id="mlist"></div></div>
-      <div class="disclaimer mt16"><span>ℹ️</span>关闭的功能会从对应端导航中消失,直接访问也会被拦回;保存后全店所有设备生效。老板端核心(看板/审计/合规/设置)始终可用。</div>`;
+      <div class="disclaimer mt16"><span>ℹ️</span>Disabled features disappear from the matching portal's nav and direct access is blocked; saving applies to every device in the venue. Owner core (dashboard / audit / compliance / settings) is always available.</div>`;
     const el=U.qs('#mlist',c);
     function draw(){
       el.innerHTML=Object.keys(work).map(k=>{
         const m=work[k];
         const chips=['owner','manager','staff'].map(r=>`<button class="pill ${m.roles.includes(r)?'ok':'ghost'}" data-role="${k}:${r}" style="cursor:pointer">${roleNames[r]}</button>`).join(' ');
         return `<div class="li" style="flex-wrap:wrap;gap:10px">
-          <div class="meta" style="min-width:150px"><b>${m.label}</b><span style="opacity:${m.on?1:.5}">${m.on?'已启用':'已关闭'}</span></div>
+          <div class="meta" style="min-width:150px"><b>${m.label}</b><span style="opacity:${m.on?1:.5}">${m.on?'On':'Off'}</span></div>
           <div class="row gap6 center wrap">${chips}
-            <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;cursor:pointer"><input type="checkbox" data-on="${k}" ${m.on?'checked':''} style="width:22px;height:22px"> 启用</label>
+            <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;cursor:pointer"><input type="checkbox" data-on="${k}" ${m.on?'checked':''} style="width:22px;height:22px"> Enabled</label>
           </div></div>`;
       }).join('');
       U.qsa('[data-role]',el).forEach(b=>b.onclick=()=>{ const [k,r]=b.dataset.role.split(':'); const arr=work[k].roles; const i=arr.indexOf(r); if(i>=0) arr.splice(i,1); else arr.push(r); draw(); });
@@ -131,98 +134,109 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     draw();
     U.qs('#saveBtn',c).onclick=async()=>{
       await MKR.features.save(work);
-      await MKR.audit.log({action:'settings.update', desc:'更新系统设置 / 权限'});
-      U.toast('设置已保存,全店生效','green');
+      await MKR.audit.log({action:'settings.update', desc:'Updated settings / permissions'});
+      U.toast('Settings saved across the venue','green');
     };
   }
 
-  // ---------- 看板 ----------
+  // ---------- Dashboard ----------
   async function dashboard(c){
     await noShowScan();
     const m = await metrics();
     const vClass = m.variance==null?'flat':(Math.abs(m.variance)<=20?'flat':'down');
     c.innerHTML = `
-      <div class="section-head"><div><h2>核心看板</h2><p>系统平时静默运行，出问题才打扰你</p></div></div>
-      <div class="grid g4" style="margin-bottom:18px">
-        <a class="card stat clickable" href="#/owner/report"><div class="k">📈 今日营业额</div><div class="v">${U.money0(m.revenue)}</div><div class="delta up">实时统计 ›</div></a>
-        <a class="card stat clickable" href="#/owner/report"><div class="k">💵 盲对账差异</div><div class="v">${m.variance==null?'—':(m.variance>=0?'+':'')+U.money0(m.variance)}</div><div class="delta ${vClass}">${m.variance==null?'今日未对账':(Math.abs(m.variance)<=20?'正常':'超阈值')} ›</div></a>
-        <a class="card stat clickable" href="#/owner/report"><div class="k">🧾 今日订单</div><div class="v">${m.count}<small> 单</small></div><div class="delta flat">查看日报 ›</div></a>
-        <a class="card stat clickable" href="#/owner/alerts"><div class="k">🚨 未读警报</div><div class="v" style="color:${m.alerts.length?'var(--red)':'inherit'}">${m.alerts.length}</div><div class="delta flat">${m.alerts.length?'需关注 ›':'一切正常 ›'}</div></a>
+      <div class="section-head"><div><h2>Dashboard</h2><p>Runs quietly — only pings you when something's wrong</p></div></div>
+      <div class="kpi-callout" id="kpi">
+        <div class="kpi-main">
+          <span class="kpi-label">Today's revenue</span>
+          <span class="kpi-value">${U.money(m.revenue)}</span>
+          <span class="kpi-sub">${m.count} order${m.count===1?'':'s'} today · live</span>
+        </div>
+        <div class="kpi-side">
+          <div class="kpi-mini"><span>Cash variance</span><b style="color:${vClass==='down'?'var(--red)':'inherit'}">${m.variance==null?'—':(m.variance>=0?'+':'')+U.money0(m.variance)}</b></div>
+          <div class="kpi-mini"><span>Unread alerts</span><b style="color:${m.alerts.length?'var(--red)':'inherit'}">${m.alerts.length}</b></div>
+        </div>
+      </div>
+      <div class="grid g4" style="margin:18px 0">
+        <a class="card stat clickable" href="#/owner/report"><div class="k">📈 Today's revenue</div><div class="v">${U.money0(m.revenue)}</div><div class="delta up">Live ›</div></a>
+        <a class="card stat clickable" href="#/owner/report"><div class="k">💵 Blind-drop variance</div><div class="v">${m.variance==null?'—':(m.variance>=0?'+':'')+U.money0(m.variance)}</div><div class="delta ${vClass}">${m.variance==null?'Not reconciled':(Math.abs(m.variance)<=20?'Normal':'Over threshold')} ›</div></a>
+        <a class="card stat clickable" href="#/owner/report"><div class="k">🧾 Today's orders</div><div class="v">${m.count}<small> orders</small></div><div class="delta flat">View report ›</div></a>
+        <a class="card stat clickable" href="#/owner/alerts"><div class="k">🚨 Unread alerts</div><div class="v" style="color:${m.alerts.length?'var(--red)':'inherit'}">${m.alerts.length}</div><div class="delta flat">${m.alerts.length?'Needs attention ›':'All good ›'}</div></a>
       </div>
       <div class="grid g2" style="align-items:start">
         <div class="card" style="padding:20px">
-          <div class="section-title">🚨 红色警报 · 只在出事时打扰<a href="#/owner/alerts" class="faint" style="font-size:12px">全部 →</a></div>
+          <div class="section-title">🚨 Alerts · only when it matters<a href="#/owner/alerts" class="faint" style="font-size:12px">All →</a></div>
           <div id="aprev"></div>
         </div>
         <div class="card" style="padding:20px">
-          <div class="section-title">📩 今日速览<a href="#/owner/report" class="faint" style="font-size:12px">完整日报 →</a></div>
+          <div class="section-title">📩 Today at a glance<a href="#/owner/report" class="faint" style="font-size:12px">Full report →</a></div>
           <div class="list">
-            <a class="li clickable" href="#/owner/report"><div class="ava">💰</div><div class="meta"><b>${U.money(m.revenue)}</b><span>今日营业额</span></div><span class="faint">›</span></a>
-            <a class="li clickable" href="#/owner/report"><div class="ava">💵</div><div class="meta"><b>${m.variance==null?'待对账':(m.variance>=0?'+':'')+U.money(m.variance)}</b><span>现金盲对账差异</span></div><span class="faint">›</span></a>
-            <a class="li clickable" href="#/owner/compliance"><div class="ava">📅</div><div class="meta"><b>8 桌</b><span>明日预订（示例）</span></div><span class="faint">›</span></a>
+            <a class="li clickable" href="#/owner/report"><div class="ava">💰</div><div class="meta"><b>${U.money(m.revenue)}</b><span>Today's revenue</span></div><span class="faint">›</span></a>
+            <a class="li clickable" href="#/owner/report"><div class="ava">💵</div><div class="meta"><b>${m.variance==null?'Not reconciled':(m.variance>=0?'+':'')+U.money(m.variance)}</b><span>Cash blind-drop variance</span></div><span class="faint">›</span></a>
+            <a class="li clickable" href="#/owner/compliance"><div class="ava">📅</div><div class="meta"><b>8 tables</b><span>Tomorrow's bookings (demo)</span></div><span class="faint">›</span></a>
           </div>
         </div>
       </div>
-      <div class="disclaimer mt16"><span>ℹ️</span>本系统提供数据汇总与导出，不直接对接 ATO、不提供税务建议，最终税务申报数字以会计师确认为准。</div>`;
+      <div class="disclaimer mt16"><span>ℹ️</span>This system aggregates and exports data; it does not connect to the ATO or give tax advice — final tax figures are confirmed by your accountant.</div>`;
     const ap = U.qs('#aprev',c);
     const red = m.alerts.slice(0,4);
     ap.innerHTML = red.length? red.map(a=>`<div class="alert ${a.level==='red'?'red':'amber'}" style="margin-bottom:10px"><span>${a.level==='red'?'⚠️':'🔔'}</span><div><b>${U.esc(a.title)}</b><br>${U.esc(a.desc)} · <span class="faint">${U.ago(a.ts)}</span></div></div>`).join('')
-      : `<div class="empty"><div class="em">😌</div><p>暂无异常，系统静默运行中</p></div>`;
+      : `<div class="empty"><div class="em">😌</div><p>No issues — running quietly</p></div>`;
   }
 
-  // ---------- 每日日报 ----------
+  // ---------- Daily report ----------
   async function report(c){
     const m = await metrics();
-    const line = `今日营业额 ${U.money(m.revenue)}，${m.count} 单；现金差异 ${m.variance==null?'未对账':(m.variance>=0?'+':'')+U.money(m.variance)}；明日预订 8 桌。`;
+    const line = `Today's revenue ${U.money(m.revenue)} across ${m.count} orders; cash variance ${m.variance==null?'not reconciled':(m.variance>=0?'+':'')+U.money(m.variance)}; tomorrow 8 bookings.`;
     c.innerHTML = `
-      <div class="section-head"><div><h2>每日智能日报</h2><p>打烊后自动推送一条极简日报到你手机，无需登录即可掌握全局</p></div></div>
+      <div class="section-head"><div><h2>Daily smart report</h2><p>Auto-pushed at close — the whole picture without logging in</p></div></div>
       <div class="card" style="padding:26px;max-width:560px">
-        <div class="row center gap8" style="margin-bottom:14px"><div class="ava" style="width:42px;height:42px;border-radius:12px;background:var(--ink);color:var(--paper);display:grid;place-items:center">📩</div><div><b>My Kitchen 管家</b><div class="faint" style="font-size:12px">${U.fmtDateTime(Date.now())} · 打烊推送</div></div></div>
+        <div class="row center gap8" style="margin-bottom:14px"><div class="ava" style="width:42px;height:42px;border-radius:12px;background:var(--ink);color:var(--paper);display:grid;place-items:center">📩</div><div><b>My Kitchen manager</b><div class="faint" style="font-size:12px">${U.fmtDateTime(Date.now())} · closing push</div></div></div>
         <div style="background:var(--paper-2);border-radius:16px;padding:18px;font-size:16px;line-height:1.7">${line}</div>
         <div class="grid g3 mt16">
-          <div class="card stat"><div class="k">营业额</div><div class="v" style="font-size:22px">${U.money0(m.revenue)}</div></div>
-          <div class="card stat"><div class="k">订单</div><div class="v" style="font-size:22px">${m.count}</div></div>
-          <div class="card stat"><div class="k">现金差异</div><div class="v" style="font-size:22px">${m.variance==null?'—':(m.variance>=0?'+':'')+U.money0(m.variance)}</div></div>
+          <div class="card stat"><div class="k">Revenue</div><div class="v" style="font-size:22px">${U.money0(m.revenue)}</div></div>
+          <div class="card stat"><div class="k">Orders</div><div class="v" style="font-size:22px">${m.count}</div></div>
+          <div class="card stat"><div class="k">Cash variance</div><div class="v" style="font-size:22px">${m.variance==null?'—':(m.variance>=0?'+':'')+U.money0(m.variance)}</div></div>
         </div>
-        <button class="btn btn-dark btn-block mt16" id="push">📲 重新推送到我的手机</button>
+        <button class="btn btn-dark btn-block mt16" id="push">📲 Re-push to my phone</button>
       </div>`;
-    U.qs('#push',c).onclick=()=>U.toast('日报已推送（演示环境不真实发送）','green');
+    U.qs('#push',c).onclick=()=>U.toast('Report pushed (demo — not actually sent)','green');
   }
 
-  // ---------- 红色警报 ----------
+  // ---------- Alerts ----------
   async function alerts(c){
     let list=(await MKR.db.getAll('alerts')).sort((a,b)=>b.ts-a.ts);
     function draw(){
-      c.innerHTML=`<div class="section-head"><div><h2>异常红色警报</h2><p>盲对账差异超标 / 大额退款 / 员工迟到等才会推送</p></div>
-        ${list.some(a=>!a.read)?'<button class="btn btn-ghost btn-sm" id="readAll">全部标为已读</button>':''}</div>
+      c.innerHTML=`<div class="section-head"><div><h2>Critical alerts</h2><p>Only fires on variance / big refunds / lateness etc.</p></div>
+        ${list.some(a=>!a.read)?'<button class="btn btn-ghost btn-sm" id="readAll">Mark all read</button>':''}</div>
         <div id="al"></div>`;
       const el=U.qs('#al',c);
-      if(!list.length){ el.innerHTML=`<div class="empty"><div class="em">😌</div><p>暂无任何警报，一切正常</p></div>`; return; }
+      if(!list.length){ el.innerHTML=`<div class="empty"><div class="em">😌</div><p>No alerts — all good</p></div>`; return; }
       el.innerHTML=list.map(a=>`<div class="alert ${a.level==='red'?'red':'amber'}" style="margin-bottom:12px;${a.read?'opacity:.55':''}"><span>${a.level==='red'?'⚠️':'🔔'}</span>
         <div class="grow"><b>${U.esc(a.title)}</b><br>${U.esc(a.desc)} · <span class="faint">${U.ago(a.ts)}</span></div>
-        ${a.read?'<span class="pill ghost">已读</span>':`<button class="btn btn-ghost btn-sm" data-r="${a.id}">标记已读</button>`}</div>`).join('');
+        ${a.read?'<span class="pill ghost">Read</span>':`<button class="btn btn-ghost btn-sm" data-r="${a.id}">Mark read</button>`}</div>`).join('');
       U.qsa('[data-r]',el).forEach(b=>b.onclick=async()=>{ await MKR.db.put('alerts',{id:b.dataset.r,read:true}); list=(await MKR.db.getAll('alerts')).sort((x,y)=>y.ts-x.ts); draw(); });
       const ra=U.qs('#readAll',c); if(ra) ra.onclick=async()=>{ for(const a of list) if(!a.read) await MKR.db.put('alerts',{id:a.id,read:true}); list=(await MKR.db.getAll('alerts')).sort((x,y)=>y.ts-x.ts); draw(); };
     }
     draw();
   }
 
-  // ---------- 操作审计 ----------
+  // ---------- Audit log ----------
   async function audit(c){
     const logs=await MKR.audit.all();
-    c.innerHTML=`<div class="section-head"><div><h2>敏感操作审计</h2><p>改单 / 取消 / 打折 / 退款全程留痕 · 只追加不可篡改</p></div>
-      <span class="pill ghost">🔒 Append-only · ${logs.length} 条</span></div>
+    c.innerHTML=`<div class="section-head"><div><h2>Sensitive-action audit</h2><p>Edits / cancels / discounts / refunds fully tracked · append-only, tamper-proof</p></div>
+      <span class="pill ghost">🔒 Append-only · ${logs.length} entries</span></div>
       <div class="card" style="padding:8px 18px"><div class="list">
       ${logs.length? logs.map(l=>`<div class="li"><div class="ava">${iconOf(l.action)}</div>
         <div class="meta"><b>${MKR.audit.label(l.action)}${l.amount!=null?' · '+U.money(l.amount):''}</b><span>${U.esc(l.desc||'')}</span></div>
-        <div style="text-align:right"><div style="font-size:13px;font-weight:600">${U.esc(l.actor||'系统')}</div><div class="faint" style="font-size:11.5px">${U.fmtDateTime(l.ts)}</div></div></div>`).join('')
-        : '<div class="empty"><div class="em">🗂️</div><p>暂无操作记录</p></div>'}
+        <div style="text-align:right"><div style="font-size:13px;font-weight:600">${U.esc(l.actor||'System')}</div><div class="faint" style="font-size:11.5px">${U.fmtDateTime(l.ts)}</div></div></div>`).join('')
+        : '<div class="empty"><div class="em">🗂️</div><p>No actions recorded yet</p></div>'}
       </div></div>
-      <div class="disclaimer mt16"><span>🔒</span>审计日志采用只追加（append-only）结构，系统不提供任何删除或修改入口。</div>`;
-    function iconOf(a){ return ({'order.refund':'↩️','order.discount':'🏷️','order.cancel':'✖️','order.create':'🧾','pay.blinddrop':'🥁','staff.offboard':'🔒','staff.hire':'➕','tfn.view':'🪪','login':'🔑','shift.create':'📅','shift.remove':'🗑️','sos.post':'🆘','labor.approve':'✅','labor.reject':'⛔','swap.approve':'🔁'})[a]||'•'; }
+      <div class="disclaimer mt16"><span>🔒</span>The audit log is append-only — there is no delete or edit path anywhere in the system.</div>`;
+    function iconOf(a){ return ({'order.refund':'↩️','order.discount':'🏷️','order.cancel':'✖️','order.create':'🧾','pay.blinddrop':'🥁','staff.offboard':'🔒','staff.hire':'➕','tfn.view':'🪪','login':'🔑','shift.create':'📅','shift.remove':'🗑️','sos.post':'🆘','labor.approve':'✅','labor.reject':'⛔','swap.approve':'🔁','menu.add':'🍔','menu.edit':'🍔','menu.remove':'🗑️','settings.update':'⚙️','kitchen.create':'🏢','kitchen.approve':'✅'})[a]||'•'; }
   }
 
-  // ---------- 人工成本审批 ----------
+  // ---------- Labor cost approval ----------
   async function labor(c){
     const settings=await MKR.db.meta('settings');
     const staff=(await MKR.db.getAll('users')).filter(u=>u.role==='staff'&&!u.offboarded);
@@ -233,187 +247,295 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const approved = await MKR.db.meta('laborApproved');
 
     c.innerHTML=`
-      <div class="section-head"><div><h2>人工成本审批</h2><p>系统预测下周营业额与人工费占比，超标自动弹红色预警</p></div></div>
+      <div class="section-head"><div><h2>Labor cost approval</h2><p>Forecasts next week's revenue and labor ratio; auto-flags overruns in red</p></div></div>
       <div class="grid g3" style="margin-bottom:18px">
-        <div class="card stat"><div class="k">下周预估营业额</div><div class="v">${U.money0(fc)}</div></div>
-        <div class="card stat"><div class="k">排班总薪资（参考）</div><div class="v">${U.money0(wage)}</div></div>
-        <div class="card stat"><div class="k">人工费占比</div><div class="v" style="color:${over?'var(--red)':'var(--green)'}">${(pct*100).toFixed(0)}<small>%</small></div><div class="delta flat">红线 ${(settings.laborPctThreshold*100).toFixed(0)}%</div></div>
+        <div class="card stat"><div class="k">Forecast revenue (next week)</div><div class="v">${U.money0(fc)}</div></div>
+        <div class="card stat"><div class="k">Rostered wages (ref.)</div><div class="v">${U.money0(wage)}</div></div>
+        <div class="card stat"><div class="k">Labor ratio</div><div class="v" style="color:${over?'var(--red)':'var(--green)'}">${U.round2(pct*100).toFixed(2)}<small>%</small></div><div class="delta flat">red line ${U.round2(settings.laborPctThreshold*100).toFixed(2)}%</div></div>
       </div>
-      ${over?`<div class="alert red" style="margin-bottom:16px"><span>⚠️</span><div><b>人工成本超标</b> · 占比 ${(pct*100).toFixed(0)}% 高于红线 ${(settings.laborPctThreshold*100).toFixed(0)}%，需要你审批本周排班。</div></div>`
-            :`<div class="alert green" style="margin-bottom:16px"><span>✅</span><div>人工费占比健康，无需特别关注。</div></div>`}
+      ${over?`<div class="alert red" style="margin-bottom:16px"><span>⚠️</span><div><b>Labor cost over threshold</b> · ratio ${U.round2(pct*100).toFixed(2)}% exceeds the ${U.round2(settings.laborPctThreshold*100).toFixed(2)}% red line — needs your approval.</div></div>`
+            :`<div class="alert green" style="margin-bottom:16px"><span>✅</span><div>Labor ratio is healthy — nothing to action.</div></div>`}
       <div class="card" style="padding:22px;max-width:560px">
-        <div class="section-title">本周排班成本审批</div>
-        ${approved?`<div class="alert green"><span>✅</span><div>你已于 ${U.fmtDateTime(approved)} 审批通过本周排班。</div></div>`:`
-        <p class="muted" style="font-size:14px">薪资数字为系统按 Award 自动计算的<b>参考值</b>，请人工核对后确认。</p>
-        <div class="row gap8 mt16"><button class="btn btn-green grow" id="ap">一键审批通过</button><button class="btn btn-ghost grow" id="rj">驳回 · 要求调整</button></div>`}
-        <div class="disclaimer mt16"><span>⚖️</span>计算结果供参考，以雇主最终确认为准；本系统不提供税务建议、不直接申报。</div>
+        <div class="section-title">Approve this week's roster cost</div>
+        ${approved?`<div class="alert green"><span>✅</span><div>You approved this week's roster on ${U.fmtDateTime(approved)}.</div></div>`:`
+        <p class="muted" style="font-size:14px">Wage figures are an award-based <b>indicative</b> calculation — please review before confirming.</p>
+        <div class="row gap8 mt16"><button class="btn btn-green grow" id="ap">Approve</button><button class="btn btn-ghost grow" id="rj">Reject · request changes</button></div>`}
+        <div class="disclaimer mt16"><span>⚖️</span>Figures are indicative; the employer confirms. This system gives no tax advice and does no filing.</div>
       </div>`;
     const ap=U.qs('#ap',c), rj=U.qs('#rj',c);
-    if(ap) ap.onclick=async()=>{ await MKR.db.meta('laborApproved',Date.now()); await MKR.audit.log({action:'labor.approve',desc:`审批本周排班 · 占比${(pct*100).toFixed(0)}%`,amount:wage}); U.toast('已审批通过','green'); labor(c); };
-    if(rj) rj.onclick=async()=>{ await MKR.audit.log({action:'labor.reject',desc:'驳回排班 · 要求调整'}); U.toast('已驳回，已通知经理调整','amber'); };
+    if(ap) ap.onclick=async()=>{ await MKR.db.meta('laborApproved',Date.now()); await MKR.audit.log({action:'labor.approve',desc:`Approved this week's roster · ratio ${U.round2(pct*100).toFixed(2)}%`,amount:wage}); U.toast('Approved','green'); labor(c); };
+    if(rj) rj.onclick=async()=>{ await MKR.audit.log({action:'labor.reject',desc:'Rejected roster · requested changes'}); U.toast('Rejected — the manager has been notified','amber'); };
   }
 
-  // ---------- 团队管理（离职熔断 + TFN 调取 + Super + 签证）----------
-  const EMP_LABEL=e=>({casual:'Casual 临时工',parttime:'Part-time 兼职',fulltime:'Full-time 全职'})[e]||e||'—';
-  const VISA_LABEL=v=>({none:'无 / 公民 / PR',student:'学生签',work:'工作签',pr:'PR 永居',citizen:'澳洲公民'})[v]||'无';
-  const r1=n=>Math.round((n||0)*10)/10;
+  // ---------- Super Admin · multi-tenant Kitchens ----------
+  async function kitchens(c, arg){
+    if(arg) return kitchenDetail(c, arg);
+    const list=(await MKR.db.getAll('kitchens'));
+    let kitch = list.length ? list : [{id:'k_main', name:(await MKR.db.meta('settings')||{}).shopName||'My Kitchen', location:'Melbourne, VIC', status:'active', primary:true, createdAt:Date.now()}];
+    const users=await MKR.db.getAll('users');
+    const usersIn = k => users.filter(u=>(u.kitchenId||'k_main')===k.id);
+    const active=kitch.filter(k=>k.status==='active').length;
+    const pending=kitch.filter(k=>k.status==='pending').length;
+
+    c.innerHTML=`
+      <div class="section-head"><div><h2>Super Admin · Kitchens</h2><p>Master dashboard — full visibility and provisioning across every venue (tenant)</p></div>
+        <button class="btn btn-accent btn-sm" id="newK">＋ Create kitchen</button></div>
+      <div class="grid g4" style="margin-bottom:18px">
+        <div class="card stat"><div class="k">🏢 Kitchens</div><div class="v">${kitch.length}</div></div>
+        <div class="card stat"><div class="k">✅ Active</div><div class="v" style="color:var(--green)">${active}</div></div>
+        <div class="card stat"><div class="k">⏳ Pending approval</div><div class="v" style="color:${pending?'var(--amber)':'inherit'}">${pending}</div></div>
+        <div class="card stat"><div class="k">👥 Total users</div><div class="v">${users.length}</div></div>
+      </div>
+      <div class="card" style="padding:8px 18px"><div class="list" id="klist"></div></div>
+      <div class="disclaimer mt16"><span>🏢</span>Each kitchen is an isolated tenant. From here you have global visibility into every kitchen's data, configuration and users, and you approve or onboard new ones.</div>`;
+
+    const el=U.qs('#klist',c);
+    el.innerHTML=kitch.sort((a,b)=>(a.status==='pending'?-1:0)-(b.status==='pending'?-1:0)).map(k=>{
+      const mem=usersIn(k);
+      const mgr=mem.filter(u=>u.role==='manager').length, stf=mem.filter(u=>u.role==='staff').length;
+      const badge = k.status==='active'?'<span class="pill ok">Active</span>': k.status==='pending'?'<span class="pill warn">Pending</span>':'<span class="pill ghost">'+U.esc(k.status)+'</span>';
+      return `<div class="li">
+        <div class="ava">🏢</div>
+        <div class="meta"><b>${U.esc(k.name)} ${k.primary?'<span class="pill ghost">Primary</span>':''}</b><span>${U.esc(k.location||'—')} · ${mgr} manager(s) · ${stf} staff · ID ${U.esc(k.id)}</span></div>
+        <div class="row gap6 center">
+          ${badge}
+          ${k.status==='pending'?`<button class="btn btn-green btn-sm" data-ap="${k.id}">Approve</button>`:''}
+          <a class="btn btn-ghost btn-sm" href="#/owner/kitchens/${k.id}">View ›</a>
+        </div></div>`;
+    }).join('');
+    U.qsa('[data-ap]',el).forEach(b=>b.onclick=async()=>{
+      await MKR.db.put('kitchens',{id:b.dataset.ap, status:'active', approvedAt:Date.now()});
+      await MKR.audit.log({action:'kitchen.approve', desc:`Approved kitchen ${b.dataset.ap}`});
+      U.toast('Kitchen approved & provisioned','green'); kitchens(c);
+    });
+    U.qs('#newK',c).onclick=()=>{
+      const wrap=U.el(`<div>
+        <div class="field"><label>Kitchen / venue name</label><input class="input" id="k_name" placeholder="e.g. My Kitchen · Sydney"></div>
+        <div class="field"><label>Location</label><input class="input" id="k_loc" placeholder="e.g. Sydney, NSW"></div>
+        <div class="disclaimer"><span>ℹ️</span>New kitchens start as <b>Pending</b> until you approve them from this dashboard.</div>
+      </div>`);
+      U.modal('Create a new kitchen', wrap, {actions:[{label:'Create (pending)', class:'btn-dark', onClick:async(cl)=>{
+        const name=U.qs('#k_name',wrap).value.trim(); if(!name){ U.toast('Please enter a name','red'); return; }
+        const id='k_'+Math.random().toString(36).slice(2,8);
+        await MKR.db.put('kitchens',{id, name, location:U.qs('#k_loc',wrap).value.trim(), status:'pending', ownerId:(MKR.auth.current()||{}).id, createdAt:Date.now()});
+        await MKR.audit.log({action:'kitchen.create', desc:`Created kitchen ${name}`});
+        cl(); U.toast('Kitchen created — pending approval','green'); kitchens(c);
+      }}]});
+    };
+  }
+
+  async function kitchenDetail(c, id){
+    const k=(await MKR.db.getAll('kitchens')).find(x=>x.id===id) || {id, name:'My Kitchen', status:'active', primary:true};
+    const users=(await MKR.db.getAll('users')).filter(u=>(u.kitchenId||'k_main')===id);
+    const menu=(await MKR.db.getAll('menu')).filter(m=>(m.kitchenId||'k_main')===id);
+    const settings=await MKR.db.meta('settings')||{};
+    const mgrs=users.filter(u=>u.role==='manager');
+    const staff=users.filter(u=>u.role==='staff');
+    const owners=users.filter(u=>u.role==='owner');
+    const group=(title,arr,em)=>`
+      <div class="card" style="padding:6px 18px;margin-bottom:16px"><div class="section-title" style="padding-top:12px">${em} ${title} <span class="faint" style="font-size:12px">${arr.length}</span></div>
+      <div class="list">${arr.length?arr.map(u=>`<a class="li clickable" href="#/owner/team/${u.id}"><div class="ava">${u.emoji||U.initials(u.name)}</div>
+        <div class="meta"><b>${U.esc(u.name)} ${u.offboarded?'<span class="pill danger">Offboarded</span>':''}</b><span>Unique ID <b>${U.esc(u.id)}</b> · ${U.esc(u.position||MKR.auth.roleName(u.role))}</span></div>
+        <span class="faint" style="font-size:22px">›</span></a>`).join(''):'<div class="empty" style="padding:20px"><div class="em">—</div><p>None</p></div>'}</div></div>`;
+
+    c.innerHTML=`
+      <div class="row center between wrap" style="margin-bottom:16px">
+        <a class="btn btn-ghost btn-sm" href="#/owner/kitchens">← Back to kitchens</a>
+        ${k.status==='pending'?`<button class="btn btn-green btn-sm" id="apK">Approve & provision</button>`:`<span class="pill ok">Active</span>`}
+      </div>
+      <div class="section-head"><div><h2>${U.esc(k.name)}</h2><p>${U.esc(k.location||'—')} · tenant ID ${U.esc(k.id)}</p></div></div>
+      <div class="grid g4" style="margin-bottom:18px">
+        <div class="card stat"><div class="k">👑 Owners</div><div class="v">${owners.length}</div></div>
+        <div class="card stat"><div class="k">📋 Managers</div><div class="v">${mgrs.length}</div></div>
+        <div class="card stat"><div class="k">🧑‍🍳 Staff</div><div class="v">${staff.length}</div></div>
+        <div class="card stat"><div class="k">🍽️ Menu items</div><div class="v">${menu.length}</div></div>
+      </div>
+      <div class="section-title">Hierarchy &amp; unique IDs</div>
+      ${owners.length?group('Owners',owners,'👑'):''}
+      ${group('Managers',mgrs,'📋')}
+      ${group('Staff',staff,'🧑‍🍳')}
+      <div class="card" style="padding:6px 18px"><div class="section-title" style="padding-top:12px">⚙️ Configuration snapshot</div><div class="list">
+        <div class="li"><div class="meta"><span>Operating hours</span><b>${(settings.operatingHours||{}).open||'—'} – ${(settings.operatingHours||{}).close||'—'}</b></div></div>
+        <div class="li"><div class="meta"><span>Labor ratio red line</span><b>${settings.laborPctThreshold!=null?U.round2(settings.laborPctThreshold*100).toFixed(2)+'%':'—'}</b></div></div>
+        <div class="li"><div class="meta"><span>Cash variance threshold</span><b>${settings.cashVarianceThreshold!=null?U.money(settings.cashVarianceThreshold):'—'}</b></div></div>
+        <div class="li"><div class="meta"><span>Student-visa fortnight cap</span><b>${settings.visaCapFortnight||'—'} h</b></div></div>
+      </div></div>
+      <div class="disclaimer mt16"><span>🔑</span>Every user has a unique ID for signing into their customised portal. Tap a person to open their full profile.</div>`;
+    const ap=U.qs('#apK',c); if(ap) ap.onclick=async()=>{ await MKR.db.put('kitchens',{id, status:'active', approvedAt:Date.now()}); await MKR.audit.log({action:'kitchen.approve', desc:`Approved kitchen ${id}`}); U.toast('Kitchen approved','green'); kitchenDetail(c,id); };
+  }
+
+  // ---------- Team management (offboard cut-off + TFN reveal + Super + visa) ----------
+  const EMP_LABEL=e=>({casual:'Casual',parttime:'Part-time',fulltime:'Full-time'})[e]||e||'—';
+  const VISA_LABEL=v=>({none:'None / citizen / PR',student:'Student visa',work:'Work visa',pr:'PR',citizen:'Australian citizen'})[v]||'None';
 
   async function team(c, arg){
-    if(arg) return staffPage(c, arg);   // 整页员工档案
+    if(arg) return staffPage(c, arg);   // full-page staff profile
     const settings=await MKR.db.meta('settings');
     const users=(await MKR.db.getAll('users')).filter(u=>u.role==='staff');
     const shifts=await MKR.db.getAll('shifts');
-    const visaHours=id=>r1(shifts.filter(s=>s.staffId===id).reduce((t,s)=>t+MKR.pay.hours(s.start,s.end),0));
+    const visaHours=id=>U.round2(shifts.filter(s=>s.staffId===id).reduce((t,s)=>t+MKR.pay.hours(s.start,s.end),0));
+    const active=users.filter(u=>!u.offboarded).length;
     c.innerHTML=`
-      <div class="section-head"><div><h2>团队管理</h2><p>点员工打开完整档案 · 可编辑电话/邮箱/护照/签证/合同/银行/TFN</p></div></div>
+      <div class="section-head"><div><h2>Team</h2><p>Tap a staff member for the full, editable profile (phone / email / passport / visa / contract / bank / TFN)</p></div>
+        <span class="pill ghost">${active} active · ${users.length} total</span></div>
       <div class="card" style="padding:8px 18px"><div class="list" id="tlist"></div></div>
-      <div class="disclaimer mt16"><span>🔒</span>仅老板角色可调取 TFN/护照（每次调取均记入审计）；离职员工合规数据加密留存 7 年备审计。</div>`;
+      <div class="disclaimer mt16"><span>🔒</span>Only the owner role can reveal a TFN / passport (each reveal is audited); offboarded staff data is encrypted and retained for 7 years for audit.</div>`;
     const el=U.qs('#tlist',c);
     el.innerHTML=users.map(u=>{
       const h=visaHours(u.id); const near=u.visa==='student'&&h>=settings.visaCapFortnight-6;
       return `<a class="li clickable" href="#/owner/team/${u.id}">
         <div class="ava">${u.emoji||U.initials(u.name)}</div>
-        <div class="meta"><b>${U.esc(u.name)} ${u.offboarded?'<span class="pill danger">已离职</span>':''}</b>
-          <span>${U.esc(u.position||EMP_LABEL(u.employment))} ${u.visa==='student'?`· 学生签 <b style="color:${near?'var(--red)':'inherit'}">${h}/${settings.visaCapFortnight}h</b>`:''} · ${u.onboarded?'已入职':'待入职'}</span></div>
+        <div class="meta"><b>${U.esc(u.name)} ${u.offboarded?'<span class="pill danger">Offboarded</span>':''}</b>
+          <span>ID ${U.esc(u.id)} · ${U.esc(u.position||EMP_LABEL(u.employment))} ${u.visa==='student'?`· student visa <b style="color:${near?'var(--red)':'inherit'}">${h.toFixed(2)}/${settings.visaCapFortnight}h</b>`:''} · ${u.onboarded?'onboarded':'pending'}</span></div>
         <span class="faint" style="font-size:22px;line-height:1">›</span></a>`;
     }).join('');
   }
 
-  // ---------- 员工完整档案(整页 + 可编辑)----------
+  // ---------- Full staff profile (full page + editable) ----------
   async function staffPage(c, id){
     const settings=await MKR.db.meta('settings');
     const u=(await MKR.db.getAll('users')).find(x=>x.id===id);
     const ob=(await MKR.db.getAll('onboarding')).find(o=>o.userId===id);
-    if(!u){ c.innerHTML=`<div class="empty"><div class="em">🤷</div><p>员工不存在</p><a class="btn btn-ghost mt12" href="#/owner/team">← 返回团队</a></div>`; return; }
+    if(!u){ c.innerHTML=`<div class="empty"><div class="em">🤷</div><p>Staff member not found</p><a class="btn btn-ghost mt12" href="#/owner/team">← Back to team</a></div>`; return; }
     const shifts=await MKR.db.getAll('shifts');
-    const h=r1(shifts.filter(s=>s.staffId===id).reduce((t,s)=>t+MKR.pay.hours(s.start,s.end),0));
-    const availTxt=()=>{ const a=u.availability||{}; const m={off:'休',am:'早',pm:'晚',all:'全天'}; const days=['一','二','三','四','五','六','日'];
-      const parts=days.map((d,i)=>a[i]&&a[i]!=='off'?d+m[a[i]]:null).filter(Boolean); return parts.length?parts.join(' · '):'未填写'; };
+    const h=U.round2(shifts.filter(s=>s.staffId===id).reduce((t,s)=>t+MKR.pay.hours(s.start,s.end),0));
+    const availTxt=()=>{ const a=u.availability||{}; const m={off:'Off',am:'AM',pm:'PM',all:'All day'}; const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      const parts=days.map((d,i)=>a[i]&&a[i]!=='off'?d+' '+m[a[i]]:null).filter(Boolean); return parts.length?parts.join(' · '):'Not set'; };
 
     function header(){ return `
       <div class="row center between wrap" style="margin-bottom:16px">
-        <a class="btn btn-ghost btn-sm" href="#/owner/team">← 返回团队</a>
+        <a class="btn btn-ghost btn-sm" href="#/owner/team">← Back to team</a>
         <div class="row gap8" id="headActions"></div>
       </div>
       <div class="row center gap8" style="margin-bottom:18px">
         <div class="ava" style="width:54px;height:54px;border-radius:15px;background:var(--accent-soft);color:var(--accent-ink);display:grid;place-items:center;font-size:24px">${u.emoji||U.initials(u.name)}</div>
-        <div><b style="font-size:20px">${U.esc(u.name)}</b> ${u.offboarded?'<span class="pill danger">已离职</span>':'<span class="pill ok">在职</span>'}
-          <div class="faint" style="font-size:13px">账号 ${U.esc(u.username||'—')} · ${EMP_LABEL(u.employment)}</div></div>
+        <div><b style="font-size:20px">${U.esc(u.name)}</b> ${u.offboarded?'<span class="pill danger">Offboarded</span>':'<span class="pill ok">Active</span>'}
+          <div class="faint" style="font-size:13px">Unique ID ${U.esc(u.id)} · login ${U.esc(u.username||'—')} · ${EMP_LABEL(u.employment)}</div></div>
       </div>`; }
 
-    // ---- 查看模式 ----
+    // ---- View mode ----
     function renderView(){
       const row=(k,v)=>`<div class="li"><div class="meta"><span>${k}</span><b style="font-size:15px">${v||'—'}</b></div></div>`;
+      const docRow=(label,data,key)=> data?`<div class="li"><div class="meta"><span>${label}</span><b style="font-size:15px">Uploaded</b></div><button class="btn btn-ghost btn-sm" data-doc="${key}">View</button></div>`:row(label,'<span class="faint">Not provided</span>');
       c.innerHTML=`
         <div style="max-width:680px">
         ${header()}
-        <div class="card" style="padding:6px 18px;margin-bottom:16px"><div class="section-title" style="padding-top:12px">基本信息</div><div class="list">
-          ${row('电话', U.esc(u.phone))}
-          ${row('邮箱', U.esc(u.email))}
-          ${row('职位', U.esc(u.position))}
-          ${row('年龄', u.age!=null?u.age+' 岁':'')}
-          ${row('入职日期', U.esc(u.startDate))}
-          ${row('住址', U.esc(u.address))}
-          ${row('紧急联系人', U.esc(u.emergency))}
-          ${row('可上班时间', availTxt())}
+        <div class="card" style="padding:6px 18px;margin-bottom:16px"><div class="section-title" style="padding-top:12px">Basic info</div><div class="list">
+          ${row('Phone', U.esc(u.phone))}
+          ${row('Email', U.esc(u.email))}
+          ${row('Position', U.esc(u.position))}
+          ${row('Age', u.age!=null?u.age:'')}
+          ${row('Start date', U.esc(u.startDate))}
+          ${row('Address', U.esc(u.address))}
+          ${row('Emergency contact', U.esc(u.emergency))}
+          ${row('Availability', availTxt())}
         </div></div>
-        <div class="card" style="padding:6px 18px;margin-bottom:16px"><div class="section-title" style="padding-top:12px">签证与合规</div><div class="list">
-          ${row('签证类型', VISA_LABEL(u.visa))}
-          ${row('签证到期', U.esc(u.visaExpiry))}
-          ${row('双周工时', u.visa==='student'?(h+' / '+settings.visaCapFortnight+'h'):h+'h')}
-          ${row('合同类型', EMP_LABEL(u.employment))}
-          ${row('护照号', ob&&ob.passportEnc?'<span id="ppSlot">'+MKR.crypto.mask()+'</span> <button class="btn btn-ghost btn-sm" id="ppBtn" style="margin-left:6px;min-height:32px;padding:0 12px">调取</button>':'')}
+        <div class="card" style="padding:6px 18px;margin-bottom:16px"><div class="section-title" style="padding-top:12px">Visa & compliance</div><div class="list">
+          ${row('Visa type', VISA_LABEL(u.visa))}
+          ${row('Visa expiry', U.esc(u.visaExpiry))}
+          ${row('Fortnight hours', u.visa==='student'?(h.toFixed(2)+' / '+settings.visaCapFortnight+'h'):h.toFixed(2)+'h')}
+          ${row('Contract type', EMP_LABEL(u.employment))}
+          ${row('Passport no.', ob&&ob.passportEnc?'<span id="ppSlot">'+MKR.crypto.mask()+'</span> <button class="btn btn-ghost btn-sm" id="ppBtn" style="margin-left:6px;min-height:32px;padding:0 12px">Reveal</button>':'')}
         </div></div>
-        <div class="card" style="padding:6px 18px;margin-bottom:16px"><div class="section-title" style="padding-top:12px">薪资 · 银行 · 税务</div><div class="list">
-          ${row('基本时薪(参考)', U.money(u.baseRate||0)+' /h')}
-          ${row('Super 基金', U.esc(ob&&ob.superFund))}
-          ${row('银行 BSB / 账号', ob?U.esc((ob.bsb||'—')+' / '+(ob.acct||'—')):'')}
-          ${row('税号 TFN', ob&&ob.tfnEnc?'<span id="tfnSlot">'+MKR.crypto.mask()+'</span> <button class="btn btn-ghost btn-sm" id="tfnBtn" style="margin-left:6px;min-height:32px;padding:0 12px">调取</button>':'（员工未提交）')}
+        <div class="card" style="padding:6px 18px;margin-bottom:16px"><div class="section-title" style="padding-top:12px">Pay · bank · tax</div><div class="list">
+          ${row('Base rate (ref.)', U.money(u.baseRate||0)+' /h')}
+          ${row('Super fund', U.esc(ob&&ob.superFund))}
+          ${row('Bank BSB / acct', ob?U.esc((ob.bsb||'—')+' / '+(ob.acct||'—')):'')}
+          ${row('TFN', ob&&ob.tfnEnc?'<span id="tfnSlot">'+MKR.crypto.mask()+'</span> <button class="btn btn-ghost btn-sm" id="tfnBtn" style="margin-left:6px;min-height:32px;padding:0 12px">Reveal</button>':'(not submitted)')}
         </div></div>
-        ${u.offboarded?`<div class="card" style="padding:6px 18px;margin-bottom:16px"><div class="section-title" style="padding-top:12px">离职归档</div><div class="list">
-          ${row('离职日期', u.archivedAt?new Date(u.archivedAt).toISOString().slice(0,10):'')}
-          ${row('合规留存至', u.retentionUntil?new Date(u.retentionUntil).toISOString().slice(0,10):'')}
+        <div class="card" style="padding:6px 18px;margin-bottom:16px"><div class="section-title" style="padding-top:12px">Onboarding documents</div><div class="list">
+          ${docRow('Passport / ID', ob&&ob.passportDoc, 'passportDoc')}
+          ${docRow('TFN declaration form', ob&&ob.tfnForm, 'tfnForm')}
+          ${docRow('Super choice form', ob&&ob.superForm, 'superForm')}
+          ${row('Onboarding', u.onboarded?'<span class="pill ok">Complete</span>'+(ob&&ob.signedAt?' · signed '+U.fmtDate(ob.signedAt):''):'<span class="pill warn">Pending</span>')}
+        </div></div>
+        ${u.offboarded?`<div class="card" style="padding:6px 18px;margin-bottom:16px"><div class="section-title" style="padding-top:12px">Offboard archive</div><div class="list">
+          ${row('Offboarded on', u.archivedAt?new Date(u.archivedAt).toISOString().slice(0,10):'')}
+          ${row('Retained until', u.retentionUntil?new Date(u.retentionUntil).toISOString().slice(0,10):'')}
         </div></div>`:''}
-        <div class="disclaimer"><span>🔒</span>TFN / 护照单独加密,仅老板可调取;每次调取记入审计日志。</div>
+        <div class="disclaimer"><span>🔒</span>TFN / passport are encrypted separately and only the owner can reveal them; each reveal is written to the audit log.</div>
         </div>`;
-      // 头部操作
+      // Head actions
       const ha=U.qs('#headActions',c);
-      ha.innerHTML = `<button class="btn btn-dark btn-sm" id="editBtn">✏️ 编辑资料</button>
-        ${u.offboarded?'<button class="btn btn-green btn-sm" id="restoreBtn">恢复账号</button>':'<button class="btn btn-danger btn-sm" id="offBtn">离职熔断</button>'}`;
+      ha.innerHTML = `<button class="btn btn-dark btn-sm" id="editBtn">✏️ Edit profile</button>
+        ${u.offboarded?'<button class="btn btn-green btn-sm" id="restoreBtn">Reactivate</button>':'<button class="btn btn-danger btn-sm" id="offBtn">Offboard</button>'}`;
       U.qs('#editBtn',c).onclick=renderEdit;
       const offB=U.qs('#offBtn',c); if(offB) offB.onclick=()=>offboard();
-      const reB=U.qs('#restoreBtn',c); if(reB) reB.onclick=async()=>{ await MKR.db.put('users',{id,offboarded:false,archivedAt:null,retentionUntil:null}); if(MKR.supa.client) await MKR.supa.client.from('profiles').update({active:true}).eq('staff_id',id); U.toast(u.name+' 已恢复','green'); staffPage(c,id); };
-      // TFN / 护照 解密
-      const tb=U.qs('#tfnBtn',c); if(tb) tb.onclick=async()=>{ const v=await MKR.crypto.dec(ob.tfnEnc); await MKR.audit.log({action:'tfn.view',desc:`调取 ${u.name} 的 TFN`}); U.qs('#tfnSlot',c).textContent=v; tb.remove(); };
-      const pb=U.qs('#ppBtn',c); if(pb) pb.onclick=async()=>{ const v=await MKR.crypto.dec(ob.passportEnc); await MKR.audit.log({action:'tfn.view',desc:`调取 ${u.name} 的 护照号`}); U.qs('#ppSlot',c).textContent=v; pb.remove(); };
+      const reB=U.qs('#restoreBtn',c); if(reB) reB.onclick=async()=>{ await MKR.db.put('users',{id,offboarded:false,archivedAt:null,retentionUntil:null}); if(MKR.supa.client) await MKR.supa.client.from('profiles').update({active:true}).eq('staff_id',id); U.toast(u.name+' reactivated','green'); staffPage(c,id); };
+      // Document viewers
+      U.qsa('[data-doc]',c).forEach(b=>b.onclick=()=>{ const img=ob[b.dataset.doc]; if(img) U.modal('Document', `<img src="${img}" style="width:100%;border-radius:12px">`); });
+      // TFN / passport reveal
+      const tb=U.qs('#tfnBtn',c); if(tb) tb.onclick=async()=>{ const v=await MKR.crypto.dec(ob.tfnEnc); await MKR.audit.log({action:'tfn.view',desc:`Revealed ${u.name}'s TFN`}); U.qs('#tfnSlot',c).textContent=v; tb.remove(); };
+      const pb=U.qs('#ppBtn',c); if(pb) pb.onclick=async()=>{ const v=await MKR.crypto.dec(ob.passportEnc); await MKR.audit.log({action:'tfn.view',desc:`Revealed ${u.name}'s passport no.`}); U.qs('#ppSlot',c).textContent=v; pb.remove(); };
     }
 
-    // ---- 编辑模式 ----
+    // ---- Edit mode ----
     function renderEdit(){
       const fld=(id,label,val,type='text',ph='')=>`<div class="field"><label>${label}</label><input class="input" id="${id}" type="${type}" value="${U.esc(val==null?'':val)}" placeholder="${ph}"></div>`;
       const sel=(id,label,val,opts)=>`<div class="field"><label>${label}</label><select class="input" id="${id}">${opts.map(([v,t])=>`<option value="${v}" ${val===v?'selected':''}>${t}</option>`).join('')}</select></div>`;
       c.innerHTML=`
         <div style="max-width:680px">
         ${header()}
-        <div class="card" style="padding:18px;margin-bottom:16px"><div class="section-title">基本信息</div>
-          ${fld('f_phone','电话',u.phone,'tel','04XX XXX XXX')}
-          ${fld('f_email','邮箱',u.email,'email','name@example.com')}
-          ${fld('f_position','职位',u.position,'text','如 楼面/厨房')}
-          <div class="row"><div class="grow">${fld('f_age','年龄',u.age,'number')}</div><div class="grow">${fld('f_start','入职日期',u.startDate,'date')}</div></div>
-          ${fld('f_address','住址',u.address)}
-          ${fld('f_emergency','紧急联系人',u.emergency,'text','姓名 + 电话')}
+        <div class="card" style="padding:18px;margin-bottom:16px"><div class="section-title">Basic info</div>
+          ${fld('f_phone','Phone',u.phone,'tel','04XX XXX XXX')}
+          ${fld('f_email','Email',u.email,'email','name@example.com')}
+          ${fld('f_position','Position',u.position,'text','e.g. Front of House / Kitchen')}
+          <div class="row"><div class="grow">${fld('f_age','Age',u.age,'number')}</div><div class="grow">${fld('f_start','Start date',u.startDate,'date')}</div></div>
+          ${fld('f_address','Address',u.address)}
+          ${fld('f_emergency','Emergency contact',u.emergency,'text','name + phone')}
         </div>
-        <div class="card" style="padding:18px;margin-bottom:16px"><div class="section-title">签证与合规</div>
-          <div class="row"><div class="grow">${sel('f_visa','签证类型',u.visa||'none',[['none','无/公民/PR'],['student','学生签'],['work','工作签'],['pr','PR 永居'],['citizen','澳洲公民']])}</div>
-          <div class="grow">${fld('f_visaExp','签证到期',u.visaExpiry,'date')}</div></div>
-          ${sel('f_emp','合同类型',u.employment||'casual',[['casual','Casual 临时工'],['parttime','Part-time 兼职'],['fulltime','Full-time 全职']])}
-          ${fld('f_passport','护照号(加密存储)',ob&&ob.passportEnc?'':'', 'text', ob&&ob.passportEnc?'已存(留空不改)':'输入护照号')}
+        <div class="card" style="padding:18px;margin-bottom:16px"><div class="section-title">Visa & compliance</div>
+          <div class="row"><div class="grow">${sel('f_visa','Visa type',u.visa||'none',[['none','None / citizen / PR'],['student','Student visa'],['work','Work visa'],['pr','PR'],['citizen','Australian citizen']])}</div>
+          <div class="grow">${fld('f_visaExp','Visa expiry',u.visaExpiry,'date')}</div></div>
+          ${sel('f_emp','Contract type',u.employment||'casual',[['casual','Casual'],['parttime','Part-time'],['fulltime','Full-time']])}
+          ${fld('f_passport','Passport no. (encrypted)','', 'text', ob&&ob.passportEnc?'stored (leave blank to keep)':'enter passport no.')}
         </div>
-        <div class="card" style="padding:18px;margin-bottom:16px"><div class="section-title">薪资 · 银行 · 税务</div>
-          ${fld('f_rate','基本时薪 AUD',u.baseRate,'number')}
-          ${fld('f_super','Super 基金',ob&&ob.superFund)}
-          <div class="row"><div class="grow">${fld('f_bsb','银行 BSB',ob&&ob.bsb,'text','000-000')}</div><div class="grow">${fld('f_acct','账号',ob&&ob.acct)}</div></div>
-          ${fld('f_tfn','TFN 税号(加密存储)','','text', ob&&ob.tfnEnc?'已存(留空不改)':'9 位数字')}
+        <div class="card" style="padding:18px;margin-bottom:16px"><div class="section-title">Pay · bank · tax</div>
+          ${fld('f_rate','Base rate AUD',u.baseRate,'number')}
+          ${fld('f_super','Super fund',ob&&ob.superFund)}
+          <div class="row"><div class="grow">${fld('f_bsb','Bank BSB',ob&&ob.bsb,'text','000-000')}</div><div class="grow">${fld('f_acct','Account number',ob&&ob.acct)}</div></div>
+          ${fld('f_tfn','TFN (encrypted)','','text', ob&&ob.tfnEnc?'stored (leave blank to keep)':'9 digits')}
         </div>
         <div class="row gap8" style="max-width:680px">
-          <button class="btn btn-dark grow" id="saveBtn">保存资料</button>
-          <button class="btn btn-ghost grow" id="cancelBtn">取消</button>
+          <button class="btn btn-dark grow" id="saveBtn">Save profile</button>
+          <button class="btn btn-ghost grow" id="cancelBtn">Cancel</button>
         </div>
-        <div class="disclaimer mt12"><span>🔒</span>护照 / TFN 会用 AES 加密单独存储,只有老板能调取。</div>
+        <div class="disclaimer mt12"><span>🔒</span>Passport / TFN are AES-encrypted and stored separately — only the owner can reveal them.</div>
         </div>`;
       U.qs('#cancelBtn',c).onclick=renderView;
       U.qs('#saveBtn',c).onclick=async()=>{
         const v=id2=>{ const e=U.qs('#'+id2,c); return e?e.value.trim():''; };
-        // 非敏感 → users
+        // Non-sensitive → users
         await MKR.db.put('users',{ id,
           phone:v('f_phone'), email:v('f_email'), position:v('f_position'),
           age:v('f_age')?Number(v('f_age')):null, startDate:v('f_start'), address:v('f_address'), emergency:v('f_emergency'),
           visa:v('f_visa'), visaExpiry:v('f_visaExp'), employment:v('f_emp'), baseRate:v('f_rate')?Number(v('f_rate')):(u.baseRate||0) });
-        // 敏感/银行 → onboarding(加密)
+        // Sensitive / bank → onboarding (encrypted)
         const obId = (ob&&ob.id) || ('onb_'+id);
         const rec = { id:obId, userId:id, superFund:v('f_super'), bsb:v('f_bsb'), acct:v('f_acct') };
+        if(ob){ rec.passportDoc=ob.passportDoc; rec.tfnForm=ob.tfnForm; rec.superForm=ob.superForm; }
         const pp=v('f_passport'); if(pp) rec.passportEnc=await MKR.crypto.enc(pp); else if(ob&&ob.passportEnc) rec.passportEnc=ob.passportEnc;
         const tf=v('f_tfn').replace(/\D/g,''); if(tf) rec.tfnEnc=await MKR.crypto.enc(tf); else if(ob&&ob.tfnEnc) rec.tfnEnc=ob.tfnEnc;
         await MKR.db.put('onboarding', rec);
-        await MKR.audit.log({action:'staff.hire', desc:`更新 ${u.name} 的员工资料`});
-        U.toast('资料已保存','green');
-        staffPage(c,id);   // 重新拉取并回到查看
+        await MKR.audit.log({action:'staff.hire', desc:`Updated ${u.name}'s profile`});
+        U.toast('Profile saved','green');
+        staffPage(c,id);   // re-fetch and return to view
       };
     }
 
     async function offboard(){
-      if(await U.confirm('一键安全离职熔断',`确定将 ${u.name} 标记为已离职？账号将被【数据库层停用】,立即无法访问任何数据,合规数据加密留存 7 年。`,{ok:'确认熔断',danger:true})){
+      if(await U.confirm('Instant offboard cut-off',`Mark ${u.name} as offboarded? The account is disabled at the database layer and immediately loses access to all data; compliance data is encrypted and retained for 7 years.`,{ok:'Confirm offboard',danger:true})){
         const now=Date.now();
         await MKR.db.put('users',{id,offboarded:true, archivedAt:now, retentionUntil: now+7*365*24*3600*1000});
         if(MKR.supa.client) await MKR.supa.client.from('profiles').update({active:false}).eq('staff_id',id);
-        await MKR.audit.log({action:'staff.offboard',desc:`离职熔断 · ${u.name}`});
-        U.toast(`${u.name} 权限已熔断`,'red'); staffPage(c,id);
+        await MKR.audit.log({action:'staff.offboard',desc:`Offboard cut-off · ${u.name}`});
+        U.toast(`${u.name}'s access cut off`,'red'); staffPage(c,id);
       }
     }
     renderView();
   }
 
-  // ---------- 合规守护 ----------
+  // ---------- Compliance ----------
   async function compliance(c){
     const settings=await MKR.db.meta('settings');
     const staff=(await MKR.db.getAll('users')).filter(u=>u.role==='staff'&&!u.offboarded);
@@ -425,64 +547,64 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const archived=(await MKR.db.getAll('users')).filter(u=>u.role==='staff'&&u.offboarded);
 
     c.innerHTML=`
-      <div class="section-head"><div><h2>合规守护</h2><p>Super 提醒 · 签证工时 · 食品安全审计报告</p></div></div>
+      <div class="section-head"><div><h2>Compliance</h2><p>Super reminder · visa hours · food-safety audit report</p></div></div>
       <div class="grid g2" style="align-items:start">
         <div class="card" style="padding:22px">
-          <div class="section-title">💼 Super 缴纳提醒</div>
-          <div class="stat" style="padding:0"><div class="v">${U.money0(superDue)}</div><div class="delta flat">按 ${(settings.superRate*100).toFixed(1)}% 估算 · 截止 ${settings.superDue}</div></div>
-          <div class="alert amber mt12"><span>⏰</span><div>本季度 Super 截止日前请确认缴纳，避免逾期罚款。</div></div>
-          <button class="btn btn-ghost btn-sm btn-block mt12" id="superRemind">设为已提醒</button>
+          <div class="section-title">💼 Super reminder</div>
+          <div class="stat" style="padding:0"><div class="v">${U.money0(superDue)}</div><div class="delta flat">est. at ${U.round2(settings.superRate*100).toFixed(2)}% · due ${settings.superDue}</div></div>
+          <div class="alert amber mt12"><span>⏰</span><div>Confirm Super is paid before this quarter's deadline to avoid late penalties.</div></div>
+          <button class="btn btn-ghost btn-sm btn-block mt12" id="superRemind">Mark as reminded</button>
         </div>
         <div class="card" style="padding:22px">
-          <div class="section-title">🛂 签证工时监控总览</div>
+          <div class="section-title">🛂 Visa-hours overview</div>
           <div class="list">
-            ${stu.length? stu.map(s=>{ const h=shifts.filter(x=>x.staffId===s.id).reduce((t,x)=>t+MKR.pay.hours(x.start,x.end),0); const near=h>=settings.visaCapFortnight-6;
-              return `<div class="li"><div class="ava">${U.initials(s.name)}</div><div class="meta"><b>${s.name}</b><span>学生签 · 双周上限 ${settings.visaCapFortnight}h</span></div>
-              <span class="pill ${near?'danger':'ok'}">${h}/${settings.visaCapFortnight}h</span></div>`; }).join('')
-              : '<div class="empty"><div class="em">🛂</div><p>暂无学生签员工</p></div>'}
+            ${stu.length? stu.map(s=>{ const h=U.round2(shifts.filter(x=>x.staffId===s.id).reduce((t,x)=>t+MKR.pay.hours(x.start,x.end),0)); const near=h>=settings.visaCapFortnight-6;
+              return `<div class="li"><div class="ava">${U.initials(s.name)}</div><div class="meta"><b>${U.esc(s.name)}</b><span>Student visa · fortnight cap ${settings.visaCapFortnight}h</span></div>
+              <span class="pill ${near?'danger':'ok'}">${h.toFixed(2)}/${settings.visaCapFortnight}h</span></div>`; }).join('')
+              : '<div class="empty"><div class="em">🛂</div><p>No student-visa staff</p></div>'}
           </div>
         </div>
       </div>
       <div class="card mt16" style="padding:22px">
-        <div class="section-title">📋 食品安全审计报告（一键导出）</div>
-        <p class="muted" style="font-size:14px">汇总员工端的冰箱温度打卡、卫生任务记录，按 Council 食品安全审计格式生成报告。今日已记录 ${tasks.filter(t=>t.done).length}/${tasks.length} 项。</p>
+        <div class="section-title">📋 Food-safety audit report (one-tap export)</div>
+        <p class="muted" style="font-size:14px">Aggregates staff fridge-temperature logs and hygiene tasks into a Council food-safety audit format. Today: ${tasks.filter(t=>t.done).length}/${tasks.length} logged.</p>
         <div class="row gap8 mt12 wrap">
-          <button class="btn btn-dark btn-sm" id="exportFood">📄 导出今日食品安全记录</button>
-          <button class="btn btn-ghost btn-sm" id="exportCsv">📊 导出营业 / 工资 CSV</button>
+          <button class="btn btn-dark btn-sm" id="exportFood">📄 Export today's food-safety log</button>
+          <button class="btn btn-ghost btn-sm" id="exportCsv">📊 Export sales / wages CSV</button>
         </div>
       </div>
       <div class="card mt16" style="padding:22px">
-        <div class="section-title">🗄️ 离职员工合规数据留存（7 年）</div>
-        <p class="muted" style="font-size:14px">离职员工的资料不会删除，按澳洲审计要求加密留存 7 年；TFN 等敏感字段仍仅老板可调取。</p>
+        <div class="section-title">🗄️ Offboarded staff data retention (7 years)</div>
+        <p class="muted" style="font-size:14px">Offboarded staff records are not deleted — per Australian audit requirements they are encrypted and retained for 7 years; sensitive fields like TFN remain owner-only.</p>
         <div class="list mt8">
           ${archived.length? archived.map(u=>{
             const ru=u.retentionUntil? new Date(u.retentionUntil).toISOString().slice(0,10):'—';
             const au=u.archivedAt? new Date(u.archivedAt).toISOString().slice(0,10):'—';
-            return `<div class="li"><div class="ava">🗄️</div><div class="meta"><b>${U.esc(u.name)}</b><span>离职于 ${au} · 数据已加密留存</span></div><span class="pill ghost">留存至 ${ru}</span></div>`;
-          }).join('') : '<div class="empty"><div class="em">🗄️</div><p>暂无离职归档</p></div>'}
+            return `<div class="li"><div class="ava">🗄️</div><div class="meta"><b>${U.esc(u.name)}</b><span>Offboarded ${au} · data encrypted & retained</span></div><span class="pill ghost">until ${ru}</span></div>`;
+          }).join('') : '<div class="empty"><div class="em">🗄️</div><p>No offboard archive</p></div>'}
         </div>
       </div>
-      <div class="disclaimer mt16"><span>⚖️</span>本系统提供数据汇总与导出，不直接对接 ATO、不提供税务建议；工资与税务最终数字以会计师 / 雇主确认为准。</div>
-      <div class="row mt24"><button class="btn btn-ghost btn-sm" id="resetBtn">↺ 重置演示数据</button></div>`;
+      <div class="disclaimer mt16"><span>⚖️</span>This system aggregates and exports data; it does not connect to the ATO or give tax advice — final wage / tax figures are confirmed by the accountant / employer.</div>
+      <div class="row mt24"><button class="btn btn-ghost btn-sm" id="resetBtn">↺ Reset demo data</button></div>`;
 
-    U.qs('#superRemind',c).onclick=async()=>{ await MKR.audit.log({action:'super.remind',desc:'Super 提醒已确认',amount:superDue}); U.toast('已记录','green'); };
+    U.qs('#superRemind',c).onclick=async()=>{ await MKR.audit.log({action:'super.remind',desc:'Super reminder confirmed',amount:superDue}); U.toast('Recorded','green'); };
     U.qs('#exportFood',c).onclick=()=>exportFood(tasks);
     U.qs('#exportCsv',c).onclick=()=>exportCsv();
-    U.qs('#resetBtn',c).onclick=async()=>{ if(await U.confirm('重置演示数据','将清空所有本地数据并重新载入演示账号，确定？',{ok:'重置',danger:true})) MKR.seed.reset(); };
+    U.qs('#resetBtn',c).onclick=async()=>{ if(await U.confirm('Reset demo data','This clears all local data and reloads the demo accounts. Continue?',{ok:'Reset',danger:true})) MKR.seed.reset(); };
   }
 
   function download(name,content,type){ const b=new Blob([content],{type}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name; a.click(); URL.revokeObjectURL(a.href); }
   function exportFood(tasks){
-    const rows=['食品安全记录,'+U.todayISO(),'任务,状态,记录值,执行人,时间'];
-    tasks.forEach(t=>rows.push(`${t.name},${t.done?'已完成':'未完成'},${t.value||''},${t.by||''},${t.done?'已提交':''}`));
+    const rows=['Food-safety log,'+U.todayISO(),'Task,Status,Value,By,Time'];
+    tasks.forEach(t=>rows.push(`${t.name},${t.done?'Done':'Not done'},${t.value||''},${t.by||''},${t.done?'submitted':''}`));
     download('food-safety-'+U.todayISO()+'.csv','﻿'+rows.join('\n'),'text/csv');
-    MKR.audit.log({action:'export',desc:'导出食品安全记录'}); U.toast('已导出 CSV','green');
+    MKR.audit.log({action:'export',desc:'Exported food-safety log'}); U.toast('CSV exported','green');
   }
   async function exportCsv(){
     const orders=(await MKR.db.getAll('orders')).filter(o=>isToday(o.createdAt));
-    const rows=['订单号,金额AUD,支付方式,状态,时间'];
-    orders.forEach(o=>rows.push(`${o.id.slice(-4)},${o.total.toFixed(2)},${o.method==='cash'?'现金':'刷卡'},${o.status},${U.fmtDateTime(o.createdAt)}`));
+    const rows=['Order,Amount AUD,Method,Status,Time'];
+    orders.forEach(o=>rows.push(`${o.id.slice(-4)},${o.total.toFixed(2)},${o.method==='cash'?'cash':'card'},${o.status},${U.fmtDateTime(o.createdAt)}`));
     download('sales-'+U.todayISO()+'.csv','﻿'+rows.join('\n'),'text/csv');
-    MKR.audit.log({action:'export',desc:'导出营业数据 CSV'}); U.toast('已导出 CSV','green');
+    MKR.audit.log({action:'export',desc:'Exported sales CSV'}); U.toast('CSV exported','green');
   }
 })();

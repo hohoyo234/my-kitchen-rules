@@ -1,7 +1,7 @@
 {
-  "name": "My Kitchen Rules · 餐厅全能管家",
+  "name": "My Kitchen Rules · All-in-one restaurant manager",
   "short_name": "My Kitchen",
-  "description": "餐厅全能管家系统 — 三端协作、实时同步",
+  "description": "All-in-one restaurant manager — three-portal teamwork, real-time sync",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

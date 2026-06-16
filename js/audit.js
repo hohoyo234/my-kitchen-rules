@@ -1,6 +1,7 @@
-/* ===== 审计日志 (Audit Trail) =====
-   只追加（append-only）结构，不可篡改、不可删除。
-   记录前台所有「改单 / 取消 / 打折 / 退款」及敏感操作的人员、时间、金额。
+/* ===== Audit Trail =====
+   Append-only structure — tamper-proof, never deleted.
+   Records every sensitive POS action (edit / cancel / discount / refund) with
+   the actor, time and amount.
 */
 window.MKR = window.MKR || {};
 (function(){
@@ -13,7 +14,7 @@ window.MKR = window.MKR || {};
         action, desc,
         amount,
         target,
-        actor: sess ? sess.name : '系统',
+        actor: sess ? sess.name : 'System',
         actorRole: sess ? sess.role : 'system',
         meta
       });
@@ -21,12 +22,14 @@ window.MKR = window.MKR || {};
     async all(){ const rows = await MKR.db.getAll('audit'); return rows.sort((a,b)=>b.ts-a.ts); },
     label(action){
       return ({
-        'order.cancel':'取消订单','order.discount':'手动打折','order.refund':'退款',
-        'order.create':'新建订单','order.edit':'修改订单','pay.blinddrop':'盲对账',
-        'staff.offboard':'员工离职熔断','staff.hire':'招聘入职','tfn.view':'调取 TFN',
-        'shift.create':'新增排班','shift.remove':'删除排班','labor.approve':'人工成本审批',
-        'labor.reject':'人工成本驳回','sos.post':'发布 SOS 顶班','swap.approve':'换班审批',
-        'login':'登录','export':'数据导出','super.remind':'Super 提醒'
+        'order.cancel':'Cancel order','order.discount':'Manual discount','order.refund':'Refund',
+        'order.create':'New order','order.edit':'Edit order','pay.blinddrop':'Blind drop',
+        'staff.offboard':'Offboard staff','staff.hire':'Hire / onboard','tfn.view':'Reveal TFN',
+        'shift.create':'Add shift','shift.remove':'Remove shift','labor.approve':'Approve labor cost',
+        'labor.reject':'Reject labor cost','sos.post':'Post SOS shift','swap.approve':'Approve swap',
+        'login':'Sign in','export':'Export data','super.remind':'Super reminder',
+        'menu.add':'Add menu item','menu.edit':'Edit menu item','menu.remove':'Remove menu item',
+        'settings.update':'Update settings','kitchen.create':'Create kitchen','kitchen.approve':'Approve kitchen'
       })[action] || action;
     }
   };

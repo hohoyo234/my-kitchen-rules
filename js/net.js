@@ -1,4 +1,4 @@
-/* ===== 底层保障：断网保护 / 状态红绿灯 / 误刷新拦截 / 静默同步 ===== */
+/* ===== Resilience layer: offline guard / status light / refresh guard / silent sync ===== */
 window.MKR = window.MKR || {};
 (function(){
   let dirty=false;
@@ -15,13 +15,13 @@ window.MKR = window.MKR || {};
       const pend=Net.pending();
       if(!Net.online){
         light.className='netlight offline';
-        light.innerHTML=`<span class="lamp"></span>本地保护模式${pend?` · 积压 ${pend}`:''}`;
+        light.innerHTML=`<span class="lamp"></span>Offline-safe mode${pend?` · ${pend} queued`:''}`;
       } else if(pend>0){
         light.className='netlight syncing';
-        light.innerHTML=`<span class="lamp"></span>同步中 · ${pend}`;
+        light.innerHTML=`<span class="lamp"></span>Syncing · ${pend}`;
       } else {
         light.className='netlight online';
-        light.innerHTML=`<span class="lamp"></span>${cloud?'已连接云端':'已连接(本地)'}`;
+        light.innerHTML=`<span class="lamp"></span>${cloud?'Cloud connected':'Connected (local)'}`;
       }
       const bar=MKR.util.qs('#offbar'); if(bar) bar.classList.toggle('hidden', Net.online);
     },
@@ -29,9 +29,9 @@ window.MKR = window.MKR || {};
     async flush(){ if(MKR.db && MKR.db.flush) await MKR.db.flush(); Net.render(); },
 
     init(){
-      window.addEventListener('online', async ()=>{ Net.online=true; Net.render(); MKR.util.toast('网络已恢复，正在静默同步…'); await Net.flush(); if(Net.pending()===0) MKR.util.toast('数据已同步至云端','green'); });
-      window.addEventListener('offline',()=>{ Net.online=false; Net.render(); MKR.util.toast('网络已断开 · 已进入本地保护模式，请放心继续操作','amber'); });
-      window.addEventListener('beforeunload',(e)=>{ if(dirty){ e.preventDefault(); e.returnValue='管家提示：您有未保存的数据，刷新将导致数据丢失，确定要离开吗？'; return e.returnValue; } });
+      window.addEventListener('online', async ()=>{ Net.online=true; Net.render(); MKR.util.toast('Back online — syncing in the background…'); await Net.flush(); if(Net.pending()===0) MKR.util.toast('All data synced to the cloud','green'); });
+      window.addEventListener('offline',()=>{ Net.online=false; Net.render(); MKR.util.toast('Network lost · switched to offline-safe mode — keep working','amber'); });
+      window.addEventListener('beforeunload',(e)=>{ if(dirty){ e.preventDefault(); e.returnValue='You have unsaved data. Reloading may lose it — leave anyway?'; return e.returnValue; } });
       Net.render();
     }
   };

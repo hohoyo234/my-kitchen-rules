@@ -1,20 +1,24 @@
-/* ===== 工具函数 ===== */
+/* ===== Utility helpers ===== */
 window.MKR = window.MKR || {};
 (function(){
   const U = {};
 
   U.money = (n)=> '$' + (Number(n)||0).toLocaleString('en-AU',{minimumFractionDigits:2,maximumFractionDigits:2});
   U.money0 = (n)=> '$' + Math.round(Number(n)||0).toLocaleString('en-AU');
+  // Round to 2 decimal places (e.g. 41.93333333 -> 41.93)
+  U.round2 = (n)=> Math.round((Number(n)||0)*100)/100;
+  // Format a number of hours with two decimals (e.g. "41.93 h")
+  U.hrs = (n)=> U.round2(n).toFixed(2)+' h';
   U.uid = (p='id')=> p+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
   U.now = ()=> Date.now();
   U.todayISO = ()=> new Date().toISOString().slice(0,10);
 
-  U.fmtTime = (ts)=>{ const d=new Date(ts); return d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false}); };
-  U.fmtDate = (ts)=>{ const d=new Date(ts); return `${d.getMonth()+1}月${d.getDate()}日`; };
+  U.fmtTime = (ts)=>{ const d=new Date(ts); return d.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit',hour12:false}); };
+  U.fmtDate = (ts)=>{ const d=new Date(ts); return d.toLocaleDateString('en-AU',{day:'numeric',month:'short'}); };
   U.fmtDateTime = (ts)=> U.fmtDate(ts)+' '+U.fmtTime(ts);
   U.ago = (ts)=>{ const s=Math.floor((Date.now()-ts)/1000);
-    if(s<60) return s+' 秒前'; if(s<3600) return Math.floor(s/60)+' 分钟前';
-    if(s<86400) return Math.floor(s/3600)+' 小时前'; return Math.floor(s/86400)+' 天前'; };
+    if(s<60) return s+'s ago'; if(s<3600) return Math.floor(s/60)+'m ago';
+    if(s<86400) return Math.floor(s/3600)+'h ago'; return Math.floor(s/86400)+'d ago'; };
   U.mins = (ts)=> Math.floor((Date.now()-ts)/60000);
 
   // escape
@@ -25,7 +29,10 @@ window.MKR = window.MKR || {};
   U.qs = (sel,root=document)=> root.querySelector(sel);
   U.qsa = (sel,root=document)=> Array.from(root.querySelectorAll(sel));
 
-  U.initials = (name='')=>{ name=name.trim(); if(/[一-龥]/.test(name)) return name.slice(-2); return name.slice(0,2).toUpperCase()||'？'; };
+  U.initials = (name='')=>{ name=name.trim(); if(/[一-龥]/.test(name)) return name.slice(-2); // CJK names: keep last two chars
+    const parts=name.split(/\s+/).filter(Boolean);
+    if(parts.length>=2) return (parts[0][0]+parts[1][0]).toUpperCase();
+    return name.slice(0,2).toUpperCase()||'?'; };
 
   // toast
   U.toast = (msg,type='')=>{
@@ -38,7 +45,7 @@ window.MKR = window.MKR || {};
   U.modal = (title, body, opts={})=>{
     const back = U.el(`<div class="modal-back"></div>`);
     const m = U.el(`<div class="modal">
-      <div class="modal-head"><h3>${U.esc(title)}</h3><button class="x" aria-label="关闭">×</button></div>
+      <div class="modal-head"><h3>${U.esc(title)}</h3><button class="x" aria-label="Close">×</button></div>
       <div class="modal-body"></div></div>`);
     const bodyEl = U.qs('.modal-body', m);
     if(typeof body==='string') bodyEl.innerHTML = body; else bodyEl.appendChild(body);
@@ -61,8 +68,8 @@ window.MKR = window.MKR || {};
   // simple confirm
   U.confirm = (title, msg, opts={})=> new Promise(res=>{
     U.modal(title, `<p class="muted">${U.esc(msg)}</p>`, { actions:[
-      {label:opts.cancel||'取消', class:'btn-ghost', onClick:(c)=>{ c(); res(false); }},
-      {label:opts.ok||'确认', class:opts.danger?'btn-danger':'btn-dark', onClick:(c)=>{ c(); res(true); }},
+      {label:opts.cancel||'Cancel', class:'btn-ghost', onClick:(c)=>{ c(); res(false); }},
+      {label:opts.ok||'Confirm', class:opts.danger?'btn-danger':'btn-dark', onClick:(c)=>{ c(); res(true); }},
     ]});
   });
 

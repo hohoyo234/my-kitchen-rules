@@ -1,8 +1,10 @@
-/* ===== 敏感字段加密 (TFN 等) =====
-   满足 Privacy Act TFN Rule：TFN 单独加密存储，仅老板角色可调取。
-   优先浏览器原生 WebCrypto AES-GCM；不可用时退回可逆混淆。
-   密钥存于共享 meta（随云端同步），这样在 A 设备加密的 TFN，老板在 B 设备也能解密。
-   生产环境应改为服务端 KMS / 列级加密——此处为 MVP 实现。
+/* ===== Sensitive-field encryption (TFN etc.) =====
+   Meets the Privacy Act TFN Rule: a TFN is stored encrypted on its own and can
+   only be revealed by the owner role.
+   Prefers native WebCrypto AES-GCM; falls back to a reversible cipher if absent.
+   The key lives in shared meta (synced to the cloud) so a TFN encrypted on
+   device A can be decrypted by the owner on device B.
+   Production should use server-side KMS / column-level encryption — this is MVP.
 */
 window.MKR = window.MKR || {};
 (function(){
@@ -44,7 +46,7 @@ window.MKR = window.MKR || {};
           return new TextDecoder().decode(await subtle.decrypt({name:'AES-GCM',iv},key,ct));
         }
         if(blob.startsWith('xor:')){ const raw=decodeURIComponent(escape(atob(blob.slice(4)))); return xorCipher(raw, await fallbackKey()); }
-      }catch(e){ return '⚠️ 解密失败'; }
+      }catch(e){ return '⚠️ decrypt failed'; }
       return blob;
     },
     mask(){ return '••• ••• •••'; }
