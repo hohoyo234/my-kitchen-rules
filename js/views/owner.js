@@ -42,6 +42,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       {id:'labor',     label:'人工成本', em:'💰', short:'成本'},
       {id:'team',      label:'团队管理', em:'👥', short:'团队'},
       {id:'compliance',label:'合规守护', em:'🛡️', short:'合规'},
+      {id:'feedback',  label:'顾客反馈', em:'⭐', short:'反馈'},
       {id:'switch',    label:'切换视图', em:'👁', short:'切换'},
       {id:'settings',  label:'系统设置', em:'⚙️', short:'设置'},
     ],
@@ -54,10 +55,36 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       if(section==='labor') return labor(c);
       if(section==='team') return team(c,arg);
       if(section==='compliance') return compliance(c);
+      if(section==='feedback') return feedback(c);
       if(section==='switch') return switchView(c);
       if(section==='settings') return settings(c);
     }
   };
+
+  // ---------- 顾客反馈(差评内部拦截)----------
+  async function feedback(c){
+    const all=await MKR.db.getAll('customer_feedback');
+    const fbs=all.filter(f=>f.type==='review').sort((a,b)=>b.ts-a.ts);
+    const bad=fbs.filter(f=>f.rating<=3);
+    const todayUrge=all.filter(f=>f.type==='urge' && new Date(f.ts).toISOString().slice(0,10)===U.todayISO()).length;
+    const avg=fbs.length?(fbs.reduce((s,f)=>s+f.rating,0)/fbs.length).toFixed(1):'—';
+    c.innerHTML=`
+      <div class="section-head"><div><h2>顾客反馈</h2><p>差评内部拦截 · 1-3 星留在内部由你处理,4-5 星已引导 Google 点评</p></div></div>
+      <div class="grid g3" style="margin-bottom:18px">
+        <div class="card stat"><div class="k">⭐ 平均评分</div><div class="v">${avg}</div><div class="delta flat">${fbs.length} 条评价</div></div>
+        <div class="card stat"><div class="k">😟 差评(1-3星)</div><div class="v" style="color:${bad.length?'var(--red)':'inherit'}">${bad.length}</div><div class="delta flat">已拦截在内部</div></div>
+        <div class="card stat"><div class="k">🔔 今日催菜</div><div class="v">${todayUrge}</div></div>
+      </div>
+      <div class="card" style="padding:8px 18px"><div class="list">
+        ${fbs.length? fbs.map(f=>`<div class="li">
+          <div class="ava" style="background:${f.rating<=3?'var(--red-soft)':'var(--green-soft)'};color:${f.rating<=3?'var(--red)':'var(--green)'}">${f.rating}★</div>
+          <div class="meta"><b>${'★'.repeat(f.rating)}<span class="faint">${'★'.repeat(5-f.rating)}</span> · 桌 ${U.esc(f.table||'—')}</b>
+            <span>${U.esc(f.comment||'(无文字评价)')} · ${U.ago(f.ts)}</span></div>
+          ${f.rating<=3?'<span class="pill danger">差评</span>':'<span class="pill ok">好评</span>'}</div>`).join('')
+        :'<div class="empty"><div class="em">⭐</div><p>暂无顾客评价</p></div>'}
+      </div></div>
+      <div class="disclaimer mt16"><span>🛡️</span>1-3 星差评不会公开,只在这里给你看,便于私下联系顾客补救;4-5 星已引导去 Google 提升公开口碑。</div>`;
+  }
 
   // ---------- 切换视图(老板超级管理员,可进入任意端预览)----------
   function switchView(c){

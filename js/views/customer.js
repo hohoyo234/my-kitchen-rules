@@ -85,6 +85,10 @@ window.MKR = window.MKR || {};
       done(ok, order);
     }
 
+    async function fb(payload){
+      try{ await MKR.supa.client.from('customer_feedback').insert({id:U().uid('fb'), data:{...payload, table:String(table), ts:Date.now()}, updated_at:new Date().toISOString()}); return true; }catch(e){ return false; }
+    }
+
     function done(ok, order){
       root.innerHTML = `<div class="cust-wrap"><div class="cust-done">
         <div class="em">${ok?'✅':'⚠️'}</div>
@@ -93,10 +97,41 @@ window.MKR = window.MKR || {};
           <div class="card" style="padding:14px 18px;text-align:left;margin:16px auto;max-width:340px">
             ${order.items.map(l=>`<div class="cust-line" style="border:none;padding:6px 0"><span>${l.qty}× ${esc(l.nm)}${l.note?' <span class="faint">('+esc(l.note)+')</span>':''}</span></div>`).join('')}
           </div>
-          <button class="btn btn-dark" id="again">再点一份</button>`
+          <div class="row gap8" style="max-width:340px;margin:0 auto 18px">
+            <button class="btn btn-accent grow" id="urge">🔔 催菜</button>
+            <button class="btn btn-ghost grow" id="again">再点一份</button>
+          </div>
+          <div class="card" id="rateBox" style="padding:18px;max-width:340px;margin:0 auto">
+            <b style="font-size:15px">用餐体验如何?</b>
+            <div class="stars" id="stars" style="font-size:34px;margin-top:10px;letter-spacing:6px">
+              ${[1,2,3,4,5].map(n=>`<span data-star="${n}" style="cursor:pointer;opacity:.35">★</span>`).join('')}
+            </div>
+          </div>`
         :`<p class="muted">网络问题,请呼叫服务员或重试</p><button class="btn btn-dark" id="again">重试</button>`}
       </div></div>`;
       const a=U().qs('#again',root); if(a) a.onclick=()=>{ cart=[]; draw('全部'); };
+      const urgeBtn=U().qs('#urge',root);
+      if(urgeBtn) urgeBtn.onclick=async()=>{ urgeBtn.disabled=true; urgeBtn.textContent='已通知后厨 ✓'; await fb({type:'urge', orderId:order&&order.id}); };
+      // 星级评价
+      U().qsa('#stars [data-star]',root).forEach(s=>s.onclick=()=>rate(+s.dataset.star));
+    }
+
+    function rate(n){
+      U().qsa('#stars [data-star]',root).forEach(s=>s.style.opacity = (+s.dataset.star<=n)?'1':'.35');
+      const box=U().qs('#rateBox',root); if(!box) return;
+      if(n>=4){
+        box.innerHTML = `<b style="font-size:15px">谢谢你的好评!🎉</b><p class="muted" style="font-size:13px;margin:8px 0 12px">愿意去 Google 给我们一个评价吗?</p>
+          <a class="btn btn-dark btn-block" target="_blank" href="https://www.google.com/search?q=my+kitchen+restaurant+review">前往 Google 点评 ↗</a>`;
+        fb({type:'review', rating:n});
+      } else {
+        box.innerHTML = `<b style="font-size:15px">抱歉没让你满意 🙏</b><p class="muted" style="font-size:13px;margin:8px 0 10px">告诉我们哪里可以改进?(只有店家会看到)</p>
+          <textarea class="input" id="cmt" placeholder="例如:上菜慢 / 口味偏咸…" style="min-height:80px"></textarea>
+          <button class="btn btn-dark btn-block mt12" id="sendCmt">提交反馈</button>`;
+        U().qs('#sendCmt',box).onclick=async()=>{
+          await fb({type:'review', rating:n, comment:(U().qs('#cmt',box).value||'').trim()});
+          box.innerHTML = `<b style="font-size:15px">已收到,谢谢!🙏</b><p class="muted" style="font-size:13px;margin-top:6px">我们会尽快改进。</p>`;
+        };
+      }
     }
 
     function esc(s){ return U().esc(s); }
