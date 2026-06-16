@@ -9,13 +9,38 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
   MKR.views.kds = {
     async render(container){
       cleanup();
+      // Owner/manager-configurable serving time (no hardcoded default).
+      let settings = await MKR.db.meta('settings') || {};
+      let lateMins = settings.kdsLateMins || 15;            // turns red after this
+      let warnMins = settings.kdsWarnMins || Math.max(1, Math.round(lateMins*0.6));  // amber before
       container.innerHTML = `
         <div class="section-head">
           <div><h2>Kitchen Display (KDS)</h2><p>Live large tickets · tap when done · instant front/back sync</p></div>
-          <span class="pill ghost" id="kcount">—</span>
+          <div class="row gap8 center">
+            <button class="btn btn-ghost btn-sm" id="kdsTimeBtn">⏱ Serving time</button>
+            <span class="pill ghost" id="kcount">—</span>
+          </div>
         </div>
         <div id="urgeBar"></div>
         <div class="kds-grid" id="kgrid"></div>`;
+
+      U.qs('#kdsTimeBtn',container).onclick=()=>{
+        const wrap=U.el(`<div>
+          <div class="disclaimer" style="margin-bottom:12px"><span>⏱</span>Set how long an order can wait before the kitchen ticket warns (amber) and then flags overdue (red). No fixed default — tune it to your kitchen.</div>
+          <div class="row">
+            <div class="field grow"><label>Warn after (min)</label><input class="input" id="kWarn" type="number" min="1" value="${warnMins}"></div>
+            <div class="field grow"><label>Overdue / red after (min)</label><input class="input" id="kLate" type="number" min="1" value="${lateMins}"></div>
+          </div>
+        </div>`);
+        U.modal('KDS serving time', wrap, {actions:[
+          {label:'Save', class:'btn-dark', onClick:async(close)=>{
+            const w=Math.max(1,Math.floor(+U.qs('#kWarn',wrap).value||warnMins));
+            const l=Math.max(w,Math.floor(+U.qs('#kLate',wrap).value||lateMins));
+            const s=await MKR.db.meta('settings')||{}; s.kdsWarnMins=w; s.kdsLateMins=l; await MKR.db.meta('settings',s);
+            warnMins=w; lateMins=l; close(); U.toast('Serving time saved','green'); draw();
+          }}
+        ]});
+      };
 
       // Urge banner: customer nudges from the last 20 minutes, unhandled
       async function drawUrge(){
@@ -37,7 +62,7 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
         if(!orders.length){ grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="em">🍽️</div><p>No pending orders — kitchen's clear ✨</p></div>`; return; }
         grid.innerHTML = orders.map(o=>{
           const mins = U.mins(o.createdAt || o.updatedAt || o.ts || Date.now());
-          const cls = mins>=12?'late':mins>=6?'warn':'';
+          const cls = mins>=lateMins?'late':mins>=warnMins?'warn':'';
           return `<div class="ticket ${cls}">
             <div class="ticket-head"><span class="t">#${o.id.slice(-4)}${o.table?' · table '+o.table:''}</span><span class="timer">${mins}′</span></div>
             <div class="ticket-body">

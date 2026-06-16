@@ -201,6 +201,11 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     // Save a partial onboarding update and refresh the screen
     async function patchOb(patch){ ob = await MKR.db.put('onboarding', {...ob, ...patch}); }
 
+    // Staff can see their OWN sensitive info in full (no masking for one's own data).
+    let tfnPlain='', passPlain='';
+    try{ if(ob.tfnEnc) tfnPlain = await MKR.crypto.dec(ob.tfnEnc); }catch(e){}
+    try{ if(ob.passportEnc) passPlain = await MKR.crypto.dec(ob.passportEnc); }catch(e){}
+
     function docStatus(){
       return {
         passport: !!ob.passportDoc || !!ob.passportEnc,
@@ -233,12 +238,12 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
           <div class="card" style="padding:20px">
             <div class="section-title">Onboarding checklist <span class="faint" style="font-size:12px">${doneCount}/${required.length} required</span></div>
             <div class="bar" style="margin:0 0 14px"><i style="width:${doneCount/required.length*100}%;background:var(--green)"></i></div>
-            ${item('passport','🛂','Passport / ID', st.passport?'Uploaded · encrypted':'Upload a photo of your passport or ID', st.passport, 'Upload')}
-            ${item('tfn','🪪','TFN declaration', st.tfn?'Submitted · encrypted (owner-only)':'Enter your Tax File Number + declaration', st.tfn, 'Fill in')}
-            ${item('super','💼','Super choice form', st.super?U.esc(ob.superFund||'Form uploaded'):'Choose your super fund / upload the form', st.super, 'Fill in')}
+            ${item('passport','🛂','Passport / ID', st.passport?('Passport'+(passPlain?' '+U.esc(passPlain):'')+(ob.passportDoc?' · document on file':'')):'Upload a photo of your passport or ID', st.passport, 'Upload')}
+            ${item('tfn','🪪','TFN declaration', st.tfn?('Your TFN: '+U.esc(tfnPlain||'•••••••••')):'Enter your Tax File Number + declaration', st.tfn, 'Fill in')}
+            ${item('super','💼','Super choice form', st.super?U.esc((ob.superFund||'Form uploaded')+(ob.superMember?' · member '+ob.superMember:'')):'Choose your super fund / upload the form', st.super, 'Fill in')}
             ${item('bank','🏦','Bank details', st.bank?U.esc((ob.bsb||'')+' / '+(ob.acct||'')):'Add your BSB + account (for pay)', st.bank, 'Add')}
-            ${!user.onboarded?`<button class="btn btn-green btn-block mt16" id="finishBtn" ${allDone?'':'disabled'}>${allDone?'✅ Submit onboarding':'Complete required documents first'}</button>`:'<div class="alert green mt16"><span>✅</span><div>All set — your documents are encrypted and stored. Tap any item above to update.</div></div>'}
-            <div class="disclaimer mt12"><span>🔒</span>Passport / TFN are encrypted (${MKR.crypto.available?'AES-GCM':'local cipher'}) and can only be revealed by the owner. This system aggregates data only and does not file with the ATO.</div>
+            ${!user.onboarded?`<button class="btn btn-green btn-block mt16" id="finishBtn" ${allDone?'':'disabled'}>${allDone?'✅ Submit onboarding':'Complete required documents first'}</button>`:'<div class="alert green mt16"><span>✅</span><div>All set — your documents are encrypted and stored. Tap any item above to view or update.</div></div>'}
+            <div class="disclaimer mt12"><span>🔒</span>Your passport / TFN are encrypted at rest (${MKR.crypto.available?'AES-GCM':'local cipher'}). You can view your own details here anytime; other staff's details are only revealable by the owner. This system aggregates data only and does not file with the ATO.</div>
           </div>
 
           <div class="card" style="padding:20px">
@@ -276,7 +281,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       if(key==='passport'){
         let img = ob.passportDoc||null;
         const wrap=U.el(`<div>
-          <div class="field"><label>Passport / ID number (optional)</label><input class="input" id="pp_no" value="${ob.passportNo?'':''}" placeholder="${ob.passportEnc?'stored (leave blank to keep)':'e.g. PA1234567'}"></div>
+          <div class="field"><label>Passport / ID number</label><input class="input" id="pp_no" value="${U.esc(passPlain)}" placeholder="e.g. PA1234567"></div>
           <div class="field"><label>Upload document photo</label>
             <label class="img-drop"><div class="img-preview" id="pp_prev">${img?`<img src="${img}">`:'<span>📷 Tap to upload passport / ID</span>'}</div><input type="file" id="pp_file" accept="image/*" hidden></label></div>
         </div>`);
@@ -284,15 +289,15 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         U.modal('🛂 Passport / ID',wrap,{actions:[{label:'Save',class:'btn-dark',onClick:async(cl)=>{
           const no=U.qs('#pp_no',wrap).value.trim();
           const patch={ passportDoc: img };
-          if(no) patch.passportEnc = await MKR.crypto.enc(no);
+          if(no){ patch.passportEnc = await MKR.crypto.enc(no); passPlain=no; }
           await patchOb(patch); cl(); U.toast('Passport saved','green'); draw();
         }}]});
       }
       else if(key==='tfn'){
         let form = ob.tfnForm||null;
         const wrap=U.el(`<div>
-          <div class="alert info" style="margin-bottom:12px"><span>🔒</span><div>Your TFN is encrypted and only the owner can reveal it (Privacy Act TFN Rule).</div></div>
-          <div class="field"><label>Tax File Number (9 digits)</label><input class="input" id="tfn_no" inputmode="numeric" placeholder="${ob.tfnEnc?'stored (leave blank to keep)':'•••••••••'}"></div>
+          <div class="alert info" style="margin-bottom:12px"><span>🔒</span><div>Your TFN is encrypted at rest. You can see your own here; for other staff, only the owner can reveal it (Privacy Act TFN Rule).</div></div>
+          <div class="field"><label>Tax File Number (9 digits)</label><input class="input" id="tfn_no" inputmode="numeric" value="${U.esc(tfnPlain)}" placeholder="•••••••••"></div>
           <div class="field"><label>TFN declaration form (optional upload)</label>
             <label class="img-drop"><div class="img-preview" id="tfn_prev">${form?`<img src="${form}">`:'<span>📄 Tap to upload the signed form</span>'}</div><input type="file" id="tfn_file" accept="image/*" hidden></label></div>
         </div>`);
@@ -300,7 +305,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         U.modal('🪪 TFN declaration',wrap,{actions:[{label:'Save',class:'btn-dark',onClick:async(cl)=>{
           const tfn=U.qs('#tfn_no',wrap).value.replace(/\D/g,'');
           const patch={ tfnForm: form };
-          if(tfn){ if(tfn.length<8){ U.toast('Please enter a valid TFN','red'); return; } patch.tfnEnc = await MKR.crypto.enc(tfn); }
+          if(tfn){ if(tfn.length<8){ U.toast('Please enter a valid TFN','red'); return; } patch.tfnEnc = await MKR.crypto.enc(tfn); tfnPlain=tfn; }
           else if(!ob.tfnEnc){ U.toast('Please enter your TFN','red'); return; }
           await patchOb(patch); cl(); U.toast('TFN saved (encrypted)','green'); draw();
         }}]});

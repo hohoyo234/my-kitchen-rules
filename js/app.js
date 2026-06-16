@@ -9,6 +9,7 @@
     await MKR.db.initSync();          // signed in → pull from cloud (authed) + subscribe to realtime
     try{ await MKR.seed.ensure(); }catch(e){}
     try{ await MKR.features.load(); }catch(e){}   // load feature switches / permissions
+    try{ await MKR.pay.load(); }catch(e){}         // load owner-configured pay rates
     MKR.notify.start(sess.role);      // notifications / shift nudges
   }
 

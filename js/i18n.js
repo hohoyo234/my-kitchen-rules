@@ -453,6 +453,45 @@ window.MKR = window.MKR || {};
     "This invite link is invalid or the restaurant isn't active yet. Please check with the owner.":"此邀请链接无效，或餐厅尚未启用。请与店主确认。",
     "← Back to sign in":"← 返回登录",
     "Go to sign in":"前往登录",
+
+    // ---- Pay rate settings (owner-configurable) ----
+    "⚙️ Pay rates":"⚙️ 薪资费率", "Pay rate settings":"薪资费率设置", "Save rates":"保存费率", "Pay rates saved":"薪资费率已保存",
+    "Set the award multipliers used for indicative wage calculations across rostering, labor cost and compliance. The employer still confirms before pay runs.":"设置用于排班、人力成本与合规中工资参考计算的 Award 费率。发薪前仍由雇主确认。",
+    "Day-type rates":"按日类型费率", "Weekday (Mon–Fri)":"平日（周一至周五）", "Public holiday":"公众假期",
+    "Saturday":"周六", "Sunday":"周日",
+    "Junior rates (share of adult rate by age)":"未成年费率（按年龄占成人费率比例）",
+    "Age 16 & under":"16 岁及以下", "Age 17":"17 岁", "Age 18":"18 岁", "Age 19":"19 岁", "Age 20":"20 岁",
+    "Age 21+ is paid the full adult rate (100%).":"21 岁及以上按成人全额费率（100%）计算。",
+
+    // ---- Rostering stat detail modals ----
+    "on the roster · view ›":"在排班中 · 查看 ›", "indicative · breakdown ›":"参考值 · 明细 ›",
+    "This week's wages":"本周工资", "Total (indicative)":"合计（参考）",
+    "Award-based indicative figures; the employer confirms before pay runs.":"基于 Award 的参考数字；发薪前由雇主确认。",
+    "Labor cost ratio":"人力成本占比", "Rostered wages (this week)":"本周排班工资", "Forecast revenue":"预测营业额",
+    "Labor ratio":"人力占比", "Red line":"红线",
+    "Over the red line — synced to the owner for approval.":"超出红线 —— 已同步给老板审批。",
+    "Within the healthy range.":"在健康范围内。",
+    "Student-visa hours":"学生签证工时", "No student-visa staff":"暂无学签员工",
+    "No shifts rostered":"暂无排班", "No staff yet":"暂无员工",
+
+    // ---- Blind drop: open + close ----
+    "Cash count":"现金清点", "🌅 Opening float":"🌅 开店备用金", "🌙 Closing count":"🌙 打烊清点",
+    "Enter note / coin counts (tap ± or type)":"录入纸币 / 硬币数量（点 ± 或直接输入）",
+    "Opening float total":"开店备用金合计", "Blind-counted total":"盲点合计",
+    "Count the cash going into the drawer to start the day — recorded as today's opening float (no comparison).":"清点开店放入钱箱的现金 —— 记录为今日开店备用金（不做比对）。",
+    "The expected total is hidden. Blind-count the drawer cash; the system compares it and generates a variance report.":"应收金额已隐藏。请盲点钱箱现金；系统会比对并生成差异报告。",
+    "Submit":"提交", "Opening float recorded":"开店备用金已记录",
+    "At close, run the closing count to reconcile the drawer.":"打烊时，运行打烊清点以对账钱箱。",
+    "Reconciliation result":"对账结果",
+
+    // ---- KDS serving time ----
+    "⏱ Serving time":"⏱ 出餐时间", "KDS serving time":"KDS 出餐时间",
+    "Set how long an order can wait before the kitchen ticket warns (amber) and then flags overdue (red). No fixed default — tune it to your kitchen.":"设置订单等待多久后出单变橙（提醒）、再变红（超时）。无固定默认值 —— 按你的后厨调整。",
+    "Warn after (min)":"提醒阈值（分钟）", "Overdue / red after (min)":"超时变红（分钟）", "Serving time saved":"出餐时间已保存",
+
+    // ---- Staff: own sensitive info ----
+    "Your TFN is encrypted at rest. You can see your own here; for other staff, only the owner can reveal it (Privacy Act TFN Rule).":"你的 TFN 静态加密存储。你可在此查看自己的；其他员工的仅老板可查看（隐私法 TFN 规则）。",
+    "All set — your documents are encrypted and stored. Tap any item above to view or update.":"已就绪 —— 你的文件已加密存储。点击上方任一项即可查看或更新。",
   };
 
   // Templated strings (numbers / names interpolated) — exact match can't catch
@@ -472,6 +511,11 @@ window.MKR = window.MKR || {};
     [/^ID (\S+) · (.+?) · student visa$/, m => `ID ${m[1]} · ${tr(m[2])} · 学生签证`],
     [/^ID (\S+) · (.+?) · (onboarded|pending)$/, m => `ID ${m[1]} · ${tr(m[2])} · ${m[3]==='onboarded'?'已入职':'待入职'}`],
     [/^(.+?) · (\d+) shifts?$/, m => `${tr(m[1])} · ${m[2]} 个班次`],
+    // New-feature templated strings
+    [/^Total staff · (\d+)$/, "员工总数 · $1"],
+    [/^Your TFN: (.+)$/, "你的 TFN：$1"],
+    [/^Student-visa hours are hard-capped at (\d+)h\/fortnight to protect employer compliance\.$/, "学生签证工时硬性封顶为每两周 $1 小时，以保障雇主合规。"],
+    [/^Opening float (\$[\d,]+\.\d{2}) recorded for (.+)\.$/, m => `开店备用金 ${m[1]} 已记录于 ${m[2]}。`],
     // Audit log: "<action label> · $<amount>"
     [/^(.+?) · (\$[\d,]+\.\d{2})$/, m => `${tr(m[1])} · ${m[2]}`],
     // Compliance super reminder: "est. at X% · due YYYY-MM-DD"

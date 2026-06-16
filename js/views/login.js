@@ -93,6 +93,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         btn.textContent='Loading…';
         try{ await MKR.db.initSync(); await MKR.seed.ensure(); }catch(e){}
         try{ await MKR.features.load(); }catch(e){}
+        try{ await MKR.pay.load(); }catch(e){}
         try{ await MKR.notify.enable(); MKR.notify.start(res.user.role); }catch(e){}
         location.hash = `#/${res.user.role}/${MKR.portals[res.user.role].home}`;
       }

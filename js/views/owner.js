@@ -302,7 +302,8 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const approved = await MKR.db.meta('laborApproved');
 
     c.innerHTML=`
-      <div class="section-head"><div><h2>Labor cost approval</h2><p>Forecasts next week's revenue and labor ratio; auto-flags overruns in red</p></div></div>
+      <div class="section-head"><div><h2>Labor cost approval</h2><p>Forecasts next week's revenue and labor ratio; auto-flags overruns in red</p></div>
+        <button class="btn btn-ghost btn-sm" id="payRatesBtn">⚙️ Pay rates</button></div>
       <div class="grid g3" style="margin-bottom:18px">
         <div class="card stat"><div class="k">Forecast revenue (next week)</div><div class="v">${U.money0(fc)}</div></div>
         <div class="card stat"><div class="k">Rostered wages (ref.)</div><div class="v">${U.money0(wage)}</div></div>
@@ -320,6 +321,45 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const ap=U.qs('#ap',c), rj=U.qs('#rj',c);
     if(ap) ap.onclick=async()=>{ await MKR.db.meta('laborApproved',Date.now()); await MKR.audit.log({action:'labor.approve',desc:`Approved this week's roster · ratio ${U.round2(pct*100).toFixed(2)}%`,amount:wage}); U.toast('Approved','green'); labor(c); };
     if(rj) rj.onclick=async()=>{ await MKR.audit.log({action:'labor.reject',desc:'Rejected roster · requested changes'}); U.toast('Rejected — the manager has been notified','amber'); };
+    U.qs('#payRatesBtn',c).onclick=()=>payRatesModal(()=>labor(c));
+  }
+
+  // ---------- Owner-configurable pay rates (award multipliers + junior tiers) ----------
+  async function payRatesModal(after){
+    const s = await MKR.db.meta('settings') || {};
+    const d = MKR.pay.rates().day, j = MKR.pay.rates().junior;
+    const pctRow=(id,label,val)=>`<div class="row center" style="gap:10px;margin-bottom:8px">
+      <div class="grow" style="font-size:14px">${label}</div>
+      <div class="row center" style="gap:4px"><input class="input" id="${id}" type="number" min="0" step="5" value="${Math.round(val*100)}" style="width:90px;text-align:right"><b>%</b></div></div>`;
+    const wrap=U.el(`<div>
+      <div class="disclaimer" style="margin-bottom:12px"><span>⚖️</span>Set the award multipliers used for indicative wage calculations across rostering, labor cost and compliance. The employer still confirms before pay runs.</div>
+      <div class="section-title">Day-type rates</div>
+      ${pctRow('pr_weekday','Weekday (Mon–Fri)',d.weekday)}
+      ${pctRow('pr_saturday','Saturday',d.saturday)}
+      ${pctRow('pr_sunday','Sunday',d.sunday)}
+      ${pctRow('pr_holiday','Public holiday',d.holiday)}
+      <div class="section-title mt16">Junior rates (share of adult rate by age)</div>
+      ${pctRow('pr_j16','Age 16 & under',j[16])}
+      ${pctRow('pr_j17','Age 17',j[17])}
+      ${pctRow('pr_j18','Age 18',j[18])}
+      ${pctRow('pr_j19','Age 19',j[19])}
+      ${pctRow('pr_j20','Age 20',j[20])}
+      <p class="faint" style="font-size:12px;margin-top:8px">Age 21+ is paid the full adult rate (100%).</p>
+    </div>`);
+    const num=(id)=> (Number(U.qs('#'+id,wrap).value)||0)/100;
+    U.modal('Pay rate settings', wrap, {actions:[
+      {label:'Save rates', class:'btn-dark', onClick:async(close)=>{
+        const payRates={
+          day:{ weekday:num('pr_weekday'), saturday:num('pr_saturday'), sunday:num('pr_sunday'), holiday:num('pr_holiday') },
+          junior:{ 16:num('pr_j16'), 17:num('pr_j17'), 18:num('pr_j18'), 19:num('pr_j19'), 20:num('pr_j20') },
+          publicHolidays: (s.payRates&&s.payRates.publicHolidays)||[],
+        };
+        s.payRates=payRates; await MKR.db.meta('settings', s);
+        await MKR.pay.load();
+        await MKR.audit.log({action:'settings.update', desc:'Updated pay rates'});
+        close(); U.toast('Pay rates saved','green'); if(after) after();
+      }}
+    ]});
   }
 
   // ---------- Super Admin · multi-tenant Kitchens ----------

@@ -121,7 +121,8 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
 
   // ---------- Rostering ----------
   async function schedule(c){
-    const staff = await staffList();
+    // Roster pool: staff AND managers (managers can be rostered too).
+    const staff = (await MKR.db.getAll('users')).filter(u=>(u.role==='staff'||u.role==='manager') && !u.offboarded);
     const settings = await MKR.db.meta('settings');
     const oh = settings.operatingHours || {open:'09:00', close:'22:00'};
     const slots = settings.shiftSlots || [{label:'Morning',start:'09:00',end:'15:00',k:'am'},{label:'Evening',start:'15:00',end:'22:00',k:'pm'}];
@@ -157,10 +158,10 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
             <button class="btn btn-accent btn-sm" id="autoBtn">⚡ Auto-roster</button>
           </div></div>
         <div class="grid g4 mt8" style="margin-bottom:18px">
-          <div class="card stat"><div class="k">👥 Total staff</div><div class="v">${staff.length}</div><div class="delta flat">on the roster</div></div>
-          <div class="card stat"><div class="k">💰 This week's wages</div><div class="v">${U.money0(wage)}</div><div class="delta flat">indicative · confirm before pay</div></div>
-          <div class="card stat"><div class="k">📊 % of forecast revenue</div><div class="v" style="color:${over?'var(--red)':'inherit'}">${U.round2(pct*100).toFixed(2)}<small>%</small></div><div class="bar"><i style="width:${Math.min(100,pct*100*2)}%;background:${over?'var(--red)':'var(--accent)'}"></i></div></div>
-          <div class="card stat"><div class="k">🛂 Student-visa hours (/${settings.visaCapFortnight}h)</div><div class="v" style="font-size:20px" id="visaSummary"></div></div>
+          <div class="card stat clickable" data-stat="staff"><div class="k">👥 Total staff</div><div class="v">${staff.length}</div><div class="delta flat">on the roster · view ›</div></div>
+          <div class="card stat clickable" data-stat="wage"><div class="k">💰 This week's wages</div><div class="v">${U.money0(wage)}</div><div class="delta flat">indicative · breakdown ›</div></div>
+          <div class="card stat clickable" data-stat="pct"><div class="k">📊 % of forecast revenue</div><div class="v" style="color:${over?'var(--red)':'inherit'}">${U.round2(pct*100).toFixed(2)}<small>%</small></div><div class="bar"><i style="width:${Math.min(100,pct*100*2)}%;background:${over?'var(--red)':'var(--accent)'}"></i></div></div>
+          <div class="card stat clickable" data-stat="visa"><div class="k">🛂 Student-visa hours (/${settings.visaCapFortnight}h)</div><div class="v" style="font-size:20px" id="visaSummary"></div></div>
         </div>
         <div class="alert info" style="margin-bottom:16px"><span>🕘</span><div>Operating hours <b>${oh.open} – ${oh.close}</b> · shift slots: ${slots.map(s=>`<b>${s.label} ${s.start}-${s.end}</b>`).join(' · ')}${Object.keys(roleShifts).length?` · fixed-hours roles: ${Object.entries(roleShifts).filter(([,v])=>v.fixed).map(([r,v])=>`<b>${U.esc(r)} ${v.start}-${v.end}</b>`).join(' · ')||'—'}`:''}</div></div>
         ${over?`<div class="alert red" style="margin-bottom:16px"><span>⚠️</span><div><b>Labor cost warning</b> · ${U.round2(pct*100).toFixed(2)}% is over the ${U.round2((settings.laborPctThreshold||0.28)*100).toFixed(2)}% red line — synced to the owner for approval.</div></div>`:''}
@@ -215,6 +216,58 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         shifts = await MKR.db.getAll('shifts'); draw(); });
       const ab=U.qs('#autoBtn',c); if(ab) ab.onclick=autoSchedule;
       const cb=U.qs('#cfgBtn',c); if(cb) cb.onclick=shiftSettings;
+      // Drill-in: each stat card opens a detail view
+      U.qsa('[data-stat]',c).forEach(card=> card.onclick=()=>statDetail(card.dataset.stat));
+    }
+
+    // Detail modals for the rostering stat cards
+    function statDetail(kind){
+      const cap=settings.visaCapFortnight;
+      if(kind==='staff'){
+        const rows = staff.length ? staff.map(s=>{
+          const cnt=shifts.filter(x=>x.staffId===s.id).length;
+          return `<div class="li"><div class="ava">${s.emoji||U.initials(s.name)}</div>
+            <div class="meta"><b>${U.esc(s.name)}</b><span>${U.esc(s.position||'—')} · ${({casual:'Casual',parttime:'Part-time',fulltime:'Full-time'})[s.employment]||'—'}${s.visa==='student'?' · student visa':''}</span></div>
+            <span class="pill ghost">${cnt} shift${cnt===1?'':'s'} · ${U.hrs(staffHours(s.id))}</span></div>`;
+        }).join('') : '<div class="empty"><div class="em">👥</div><p>No staff yet</p></div>';
+        U.modal('Total staff · '+staff.length, `<div class="list">${rows}</div>`);
+      }
+      else if(kind==='wage'){
+        let total=0;
+        const rows = staff.map(s=>{
+          const ss=shifts.filter(x=>x.staffId===s.id);
+          const pay=ss.reduce((t,x)=>t+MKR.pay.shiftPay(s,x,MKR.seed.dayTs(x.day)).pay,0); total+=pay;
+          if(!ss.length) return '';
+          return `<div class="li"><div class="ava">${s.emoji||U.initials(s.name)}</div>
+            <div class="meta"><b>${U.esc(s.name)}</b><span>${ss.length} shift${ss.length===1?'':'s'} · ${U.hrs(staffHours(s.id))}</span></div>
+            <b>${U.money(pay)}</b></div>`;
+        }).join('');
+        U.modal('This week\'s wages', `<div class="list">${rows||'<div class="empty"><div class="em">💰</div><p>No shifts rostered</p></div>'}</div>
+          <div class="cart-total mt8"><span>Total (indicative)</span><span class="v">${U.money(total)}</span></div>
+          <div class="disclaimer mt12"><span>⚖️</span>Award-based indicative figures; the employer confirms before pay runs.</div>`);
+      }
+      else if(kind==='pct'){
+        const wage=weekWage(); const fc=settings.revenueForecast||1; const p=wage/fc;
+        const over=p>(settings.laborPctThreshold||0.28);
+        U.modal('Labor cost ratio', `
+          <div class="list">
+            <div class="li"><div class="meta"><span>Rostered wages (this week)</span><b>${U.money(wage)}</b></div></div>
+            <div class="li"><div class="meta"><span>Forecast revenue</span><b>${U.money0(fc)}</b></div></div>
+            <div class="li"><div class="meta"><span>Labor ratio</span><b style="color:${over?'var(--red)':'var(--green)'}">${U.round2(p*100).toFixed(2)}%</b></div></div>
+            <div class="li"><div class="meta"><span>Red line</span><b>${U.round2((settings.laborPctThreshold||0.28)*100).toFixed(2)}%</b></div></div>
+          </div>
+          <div class="alert ${over?'red':'green'} mt12"><span>${over?'⚠️':'✅'}</span><div>${over?'Over the red line — synced to the owner for approval.':'Within the healthy range.'}</div></div>`);
+      }
+      else if(kind==='visa'){
+        const stu=staff.filter(s=>s.visa==='student');
+        const rows = stu.length ? stu.map(s=>{ const h=staffHours(s.id); const near=h>=cap-6; const over=h>cap;
+          return `<div class="li"><div class="ava">${U.initials(s.name)}</div>
+            <div class="meta"><b>${U.esc(s.name)}</b><span>Student visa · fortnight cap ${cap}h</span></div>
+            <span class="pill ${over?'danger':near?'warn':'ok'}">${h.toFixed(2)}/${cap}h</span></div>`;
+        }).join('') : '<div class="empty"><div class="em">🛂</div><p>No student-visa staff</p></div>';
+        U.modal('Student-visa hours', `<div class="list">${rows}</div>
+          <div class="disclaimer mt12"><span>🛂</span>Student-visa hours are hard-capped at ${cap}h/fortnight to protect employer compliance.</div>`);
+      }
     }
 
     // Configure operating hours, flexible shift slots, custom roles, role-based fixed hours
@@ -300,6 +353,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         // 2) flexible slots
         for(const slot of SLOTS){
           const cands=staff.filter(s=>{
+            if(s.role==='manager') return false;            // managers are rostered manually, not auto-assigned
             if(assignedToday.has(s.id)) return false;
             if(roleShifts[s.position] && roleShifts[s.position].fixed) return false;  // already handled above
             const av=(s.availability&&s.availability[day])||'all';
@@ -319,7 +373,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     }
 
     function addShift(day){
-      const opts = staff.map(s=>`<option value="${s.id}">${U.esc(s.name)} · ${({casual:'Casual',parttime:'PT',fulltime:'FT'})[s.employment]}${s.position?' · '+U.esc(s.position):''}${s.visa==='student'?' · student visa':''}</option>`).join('');
+      const opts = staff.map(s=>`<option value="${s.id}">${U.esc(s.name)} · ${({casual:'Casual',parttime:'PT',fulltime:'FT'})[s.employment]||(s.role==='manager'?'Manager':'')}${s.position?' · '+U.esc(s.position):''}${s.visa==='student'?' · student visa':''}</option>`).join('');
       const slotPick = slots.map((s,i)=>`<option value="${i}">${U.esc(s.label)} ${s.start}-${s.end}</option>`).join('');
       const wrap = U.el(`<div>
         <div class="field"><label>Staff</label><select class="input" id="ss">${opts}</select></div>

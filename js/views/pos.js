@@ -180,50 +180,71 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
     setTimeout(()=>recv.focus(),50);
   }
 
-  // ---------- Closing blind drop ----------
+  // ---------- Cash count: opening float (pre-open) or closing reconciliation ----------
   async function blindDrop(container){
     const orders = await MKR.db.getAll('orders');
     const todayCash = orders.filter(o=>isToday(o.createdAt) && o.method==='cash');
-    const expected = todayCash.reduce((s,o)=>s+o.total,0);   // expected total (hidden!)
-    const counts = {};
-    DENOMS.forEach(d=>counts[d]=0);
+    const expected = todayCash.reduce((s,o)=>s+o.total,0);   // expected total (hidden in closing mode)
+    let mode = 'close';                                       // 'open' | 'close'
+    const counts = {}; DENOMS.forEach(d=>counts[d]=0);
 
     const wrap = U.el(`
       <div>
-        <div class="alert info" style="margin-bottom:14px"><span>🙈</span><div>The expected total is hidden. First <b>blind-count the drawer cash</b> and enter it; the system then compares and generates a variance report.</div></div>
-        <div class="section-title">Tap note / coin counts</div>
-        <div class="cash-grid" id="cg">
-          ${DENOMS.map(d=>`
-            <div class="denom"><b>${d>=1?'$'+d:(d*100)+'¢'}</b>
-              <div class="ct"><button data-m="${d}">−</button><span id="c${String(d).replace('.','_')}">0</span><button data-p="${d}">+</button></div>
-            </div>`).join('')}
+        <div class="cat-tabs" id="bdMode" style="margin-bottom:12px">
+          <button data-mode="open">🌅 Opening float</button>
+          <button class="active" data-mode="close">🌙 Closing count</button>
         </div>
-        <div class="total-box"><span>Blind-counted total</span><span class="v" id="counted">$0.00</span></div>
+        <div class="alert info" id="bdHint" style="margin-bottom:14px"></div>
+        <div class="section-title">Enter note / coin counts (tap ± or type)</div>
+        <div class="cash-grid" id="cg">
+          ${DENOMS.map(d=>{ const id=String(d).replace('.','_'); return `
+            <div class="denom"><b>${d>=1?'$'+d:(d*100)+'¢'}</b>
+              <div class="ct"><button data-m="${d}">−</button>
+              <input class="cash-input" id="c${id}" data-cin="${d}" type="number" inputmode="numeric" min="0" value="0">
+              <button data-p="${d}">+</button></div>
+            </div>`; }).join('')}
+        </div>
+        <div class="total-box"><span id="bdTotLabel">Blind-counted total</span><span class="v" id="counted">$0.00</span></div>
       </div>`);
 
-    function recalc(){
-      let tot=0; DENOMS.forEach(d=> tot+=counts[d]*d);
-      U.qs('#counted',wrap).textContent = U.money(tot);
-      return tot;
+    function setMode(){
+      U.qs('#bdHint',wrap).innerHTML = mode==='open'
+        ? '<span>🌅</span><div>Count the cash going into the drawer to start the day — recorded as today\'s opening float (no comparison).</div>'
+        : '<span>🙈</span><div>The expected total is hidden. Blind-count the drawer cash; the system compares it and generates a variance report.</div>';
+      U.qs('#bdTotLabel',wrap).textContent = mode==='open' ? 'Opening float total' : 'Blind-counted total';
     }
-    U.qsa('[data-p]',wrap).forEach(b=>b.onclick=()=>{ const d=+b.dataset.p; counts[d]++; U.qs('#c'+String(d).replace('.','_'),wrap).textContent=counts[d]; recalc(); });
-    U.qsa('[data-m]',wrap).forEach(b=>b.onclick=()=>{ const d=+b.dataset.m; counts[d]=Math.max(0,counts[d]-1); U.qs('#c'+String(d).replace('.','_'),wrap).textContent=counts[d]; recalc(); });
+    function recalc(){ let tot=0; DENOMS.forEach(d=> tot+=counts[d]*d); U.qs('#counted',wrap).textContent = U.money(tot); return tot; }
+    function setCount(d,val){ counts[d]=Math.max(0,Math.floor(val)||0); U.qs('#c'+String(d).replace('.','_'),wrap).value=counts[d]; recalc(); }
 
-    U.modal('Closing blind drop', wrap, {actions:[
-      {label:'Submit reconciliation', class:'btn-dark', onClick:async(close)=>{
+    U.qsa('[data-p]',wrap).forEach(b=>b.onclick=()=>{ const d=+b.dataset.p; setCount(d, counts[d]+1); });
+    U.qsa('[data-m]',wrap).forEach(b=>b.onclick=()=>{ const d=+b.dataset.m; setCount(d, counts[d]-1); });
+    U.qsa('[data-cin]',wrap).forEach(inp=>inp.oninput=()=>{ counts[+inp.dataset.cin]=Math.max(0,Math.floor(+inp.value)||0); recalc(); });
+    U.qsa('#bdMode button',wrap).forEach(b=>b.onclick=()=>{ U.qsa('#bdMode button',wrap).forEach(x=>x.classList.remove('active')); b.classList.add('active'); mode=b.dataset.mode; setMode(); });
+    setMode();
+
+    U.modal('Cash count', wrap, {actions:[
+      {label:'Submit', class:'btn-dark', onClick:async(close)=>{
         const counted = recalc();
+        if(mode==='open'){
+          await MKR.db.put('reconciliations',{date:U.todayISO(), type:'open', counted, by:MKR.auth.current().name, ts:Date.now()});
+          await MKR.audit.log({action:'pay.blinddrop', desc:`Opening float · ${U.money(counted)}`, amount:counted});
+          close();
+          U.modal('Opening float recorded', `<div class="alert green"><span>✅</span><div>Opening float <b>${U.money(counted)}</b> recorded for ${U.todayISO()}.</div></div>
+            <p class="muted mt12" style="font-size:13px">At close, run the closing count to reconcile the drawer.</p>`,
+            {actions:[{label:'Got it',class:'btn-dark',onClick:c=>c()}]});
+          return;
+        }
+        // Closing reconciliation
         const variance = +(counted-expected).toFixed(2);
         const settings = await MKR.db.meta('settings');
         const thr = settings.cashVarianceThreshold||20;
-        const rec = await MKR.db.put('reconciliations',{date:U.todayISO(), expected, counted, variance, by: MKR.auth.current().name});
+        await MKR.db.put('reconciliations',{date:U.todayISO(), type:'close', expected, counted, variance, by: MKR.auth.current().name});
         await MKR.audit.log({action:'pay.blinddrop', desc:`Blind drop · counted ${U.money(counted)} / expected ${U.money(expected)}`, amount:variance});
-        // Variance over threshold → red alert for the owner
         if(Math.abs(variance)>thr){
           await MKR.db.put('alerts',{type:'cash', level:'red', title:'Cash blind-drop variance over threshold',
             desc:`Variance ${variance>=0?'+':''}${U.money(variance)} (expected ${U.money(expected)} / counted ${U.money(counted)})`, read:false, ts:Date.now()});
         }
         close();
-        // Result
         const ok = Math.abs(variance)<=thr;
         U.modal('Reconciliation result', `
           <div class="alert ${ok?'green':'red'}"><span>${ok?'✅':'⚠️'}</span><div>
