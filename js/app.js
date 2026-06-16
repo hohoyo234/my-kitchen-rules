@@ -22,5 +22,15 @@
   if(!location.hash) location.hash = sess ? `#/${sess.role}/${MKR.portals[sess.role].home}` : '#/login';
   MKR.router.render();
 
+  // 双语:启动自动翻译 + 浮动语言切换按钮
+  try{ MKR.i18n.start(); }catch(e){}
+  (function mountLang(){
+    if(document.getElementById('langToggle')) return;
+    const b=document.createElement('button'); b.id='langToggle'; b.className='lang-toggle';
+    b.textContent = (MKR.i18n.lang==='en') ? '🌐 中文' : '🌐 EN';
+    b.onclick=()=> MKR.i18n.toggle();
+    document.body.appendChild(b);
+  })();
+
   window.MKR_RESET = MKR.seed.reset;
 })();
