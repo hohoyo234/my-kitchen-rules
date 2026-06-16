@@ -31,7 +31,7 @@ window.MKR = window.MKR || {};
     "Tasks":"任务", "Swaps / SOS":"换班 / SOS", "POS":"收银", "Kitchen":"后厨", "Table QR":"桌台二维码",
     "My shifts":"我的班次", "Availability":"可用时间", "Today's tasks":"今日任务",
     "Swap market":"换班市场", "My profile":"我的资料",
-    "Log out":"退出登录", "Connected":"已连接",
+    "Log out":"退出登录", "Connected":"已连接", "+ shift":"+ 班次",
 
     // Network status (net.js)
     "Cloud connected":"云端已连接", "Connected (local)":"已连接（本地）",
@@ -85,6 +85,8 @@ window.MKR = window.MKR || {};
     "🧾 Today's orders":"🧾 今日订单", "🚨 Unread alerts":"🚨 未读提醒",
     "Not reconciled":"未对账", "Normal":"正常", "Over threshold":"超出阈值",
     "Needs attention ›":"需关注 ›", "All good ›":"一切正常 ›",
+    "Live ›":"实时 ›", "Not reconciled ›":"未对账 ›", "Normal ›":"正常 ›",
+    "Over threshold ›":"超阈值 ›", "View report ›":"查看报告 ›", "orders":"单",
     "🚨 Alerts · only when it matters":"🚨 提醒 · 仅在关键时刻", "All →":"全部 →",
     "📩 Today at a glance":"📩 今日概览", "Full report →":"完整报告 →",
     "Cash blind-drop variance":"现金盲投差异", "Tomorrow's bookings (demo)":"明日预订（演示）",
@@ -194,6 +196,7 @@ window.MKR = window.MKR || {};
     "📄 Export today's food-safety log":"📄 导出今日食品安全记录",
     "📊 Export sales / wages CSV":"📊 导出销售 / 工资 CSV",
     "🗄️ Offboarded staff data retention (7 years)":"🗄️ 离职员工数据留存（7 年）",
+    "Offboarded staff records are not deleted — per Australian audit requirements they are encrypted and retained for 7 years; sensitive fields like TFN remain owner-only.":"离职员工记录不会被删除 —— 按澳大利亚审计要求加密保存 7 年；TFN 等敏感字段仅老板可见。",
     "No offboard archive":"暂无离职归档",
     "This system aggregates and exports data; it does not connect to the ATO or give tax advice — final wage / tax figures are confirmed by the accountant / employer.":"本系统仅汇总与导出数据；不连接 ATO，也不提供税务建议 — 最终工资 / 税务数字由会计 / 雇主确认。",
     "↺ Reset demo data":"↺ 重置演示数据", "Reset demo data":"重置演示数据",
@@ -364,12 +367,91 @@ window.MKR = window.MKR || {};
     "Task checklist":"任务清单", "Swap / SOS approval":"换班 / SOS 审批",
     "Staff swap market":"员工换班市场", "Staff availability":"员工可用时间",
     "Table QR ordering":"桌台二维码点单", "Notifications & nudges":"通知与提醒",
+
+    // ---- Rostering extras ----
+    "· shift slots:":"· 班次时段：",
+    "Award pay auto-calculated":"工资按行业标准自动计算",
+    "· split by age + employment type across weekday / Saturday / Sunday / public holiday.":"· 按年龄 + 雇佣类型，分平日 / 周六 / 周日 / 公共假期计算。",
+    "Indicative — the employer confirms before pay runs.":"仅供参考 —— 发薪前由雇主确认。",
+
+    // ---- Table QR ----
+    "Guests scan to open":"顾客扫码打开",
+    "; orders flow live into the kitchen KDS. Print and stick a code on every table.":"；订单实时进入后厨 KDS。请为每张桌子打印并张贴二维码。",
+    "Table":"桌号",
+
+    // ---- Staff onboarding extras ----
+    "Before your first shift, please complete the required documents below:":"首班之前，请完成以下必需文件：",
+    "Passport":"护照", "and":"和", "Super choice":"养老金选择", "TFN declaration":"TFN 申报",
+    "Upload a photo of your passport or ID":"上传护照或证件照片",
+    "Enter your Tax File Number + declaration":"填写你的税号 TFN + 申报",
+    "Choose your super fund / upload the form":"选择养老金账户 / 上传表格",
+    "Add your BSB + account (for pay)":"添加 BSB + 账号（用于发薪）",
+    "Complete required documents first":"请先完成必需文件",
+    "Uploaded · encrypted":"已上传 · 已加密",
+    "Submitted · encrypted (owner-only)":"已提交 · 已加密（仅老板可见）",
+    "📷 Photo":"📷 照片",
   };
+
+  // Templated strings (numbers / names interpolated) — exact match can't catch
+  // these, so match by pattern and re-insert the captured dynamic bits.
+  const PATTERNS = [
+    [/^(\d+) reviews$/, "$1 条评价"],
+    [/^(\d+) orders? today · live$/, "今日 $1 单 · 实时"],
+    [/^(\d+) active · (\d+) total$/, "$1 在职 · 共 $2 人"],
+    [/^🔒 Append-only · (\d+) entries$/, "🔒 仅追加 · 共 $1 条"],
+    [/^Append-only · (\d+) entries$/, "仅追加 · 共 $1 条"],
+    [/^Aggregates staff fridge-temperature logs and hygiene tasks into a Council food-safety audit format\. Today: (\d+)\/(\d+) logged\.$/, "汇总员工冰箱测温记录与卫生任务，生成市政食品安全审计格式。今日：已记录 $1/$2。"],
+    [/^Student visa · fortnight cap (\d+)h$/, "学生签证 · 两周上限 $1h"],
+    [/^([\d.]+ h) this week$/, "本周 $1"],
+    // Staff list / overview rows (embedded id + data) — translate the label parts.
+    [/^· onboarded$/, "· 已入职"],
+    [/^· pending$/, "· 待入职"],
+    [/^ID (\S+) · (.+?) · student visa$/, m => `ID ${m[1]} · ${tr(m[2])} · 学生签证`],
+    [/^ID (\S+) · (.+?) · (onboarded|pending)$/, m => `ID ${m[1]} · ${tr(m[2])} · ${m[3]==='onboarded'?'已入职':'待入职'}`],
+    [/^(.+?) · (\d+) shifts?$/, m => `${tr(m[1])} · ${m[2]} 个班次`],
+    // Audit log: "<action label> · $<amount>"
+    [/^(.+?) · (\$[\d,]+\.\d{2})$/, m => `${tr(m[1])} · ${m[2]}`],
+    // Compliance super reminder: "est. at X% · due YYYY-MM-DD"
+    [/^est\. at ([\d.]+%) · due (.+)$/, m => `预计 ${m[1]} · 截止 ${m[2]}`],
+    // Super Admin kitchen row: "<loc> · N manager(s) · M staff · ID xxx"
+    [/^(.+) · (\d+) manager\(s\) · (\d+) staff · ID (.+)$/, m => `${m[1]} · ${m[2]} 名经理 · ${m[3]} 名员工 · ID ${m[4]}`],
+    // Labor cost
+    [/^red line ([\d.]+%)$/, "红线 $1"],
+    [/^You approved this week's roster on (.+)\.$/, m => `你已于 ${m[1]} 批准本周排班。`],
+    // Daily report summary line
+    [/^Today's revenue (.+) across (\d+) orders; cash variance (.+); tomorrow (\d+) bookings\.$/,
+      m => `今日营业额 ${m[1]}，共 ${m[2]} 单；现金差异 ${m[3]==='not reconciled'?'未对账':m[3]}；明日 ${m[4]} 桌预订。`],
+    // KDS ticket / QR / rostering / onboarding companions
+    [/^#(\w+) · table (.+)$/, m => `#${m[1]} · 桌 ${m[2]}`],
+    [/^Table (\d+)$/, "桌 $1"],
+    [/^🛂 Student-visa hours \(\/(\d+)h\)$/, "🛂 学生签证工时（/$1h）"],
+    [/^Morning (\d\d:\d\d-\d\d:\d\d)$/, "早班 $1"],
+    [/^Evening (\d\d:\d\d-\d\d:\d\d)$/, "晚班 $1"],
+    [/^Welcome aboard, (.*)!$/, m => `欢迎加入，${m[1]}！`],
+    [/^(\d+)\/(\d+) required$/, "$1/$2 项必需"],
+    [/^Passport \/ TFN are encrypted \((AES-GCM|local cipher)\) and can only be revealed by the owner\. This system aggregates data only and does not file with the ATO\.$/,
+      m => `护照 / TFN 已加密（${m[1]}），仅老板可查看。本系统仅汇总数据，不向 ATO 申报。`],
+    // Customer self-order page
+    [/^🪑 Table (.+) · self-order$/, "🪑 桌 $1 · 自助点单"],
+    [/^Table (.+) · confirm order$/, "桌 $1 · 确认订单"],
+    // Owner preview banners (role name already translated inside the capture)
+    [/^👁 Owner preview · (.+)$/, m => `👁 老板预览 · ${tr(m[1].trim())}`],
+    [/^Owner · previewing (.+)$/, m => `老板 · 预览${tr(m[1])}`],
+  ];
+
+  function trKey(key){
+    if(T[key]) return T[key];
+    for(const [re, rep] of PATTERNS){
+      const m = key.match(re);
+      if(m) return typeof rep === 'function' ? rep(m) : key.replace(re, rep);
+    }
+    return null;
+  }
 
   function tr(s){
     if(s==null) return s;
     const key = String(s).trim();
-    return T[key] || s;
+    return trKey(key) || s;
   }
 
   // ---- DOM translation ----
@@ -381,7 +463,7 @@ window.MKR = window.MKR || {};
     if(!raw) return;
     const key = raw.trim();
     if(!key) return;
-    const hit = T[key];
+    const hit = trKey(key);
     if(hit && hit!==key){
       const lead = raw.match(/^\s*/)[0];
       const trail = raw.match(/\s*$/)[0];
@@ -424,7 +506,8 @@ window.MKR = window.MKR || {};
   function schedule(){
     if(scheduled) return;
     scheduled = true;
-    requestAnimationFrame(()=>{ scheduled = false; apply(document.body); });
+    // setTimeout (not rAF) so translation still fires when the tab is backgrounded.
+    setTimeout(()=>{ scheduled = false; apply(document.body); }, 0);
   }
 
   function startObserver(){
