@@ -29,9 +29,13 @@ window.MKR = window.MKR || {};
   // Edge Function secrets.
   const VAPID_PUBLIC = 'BLSuk74ERv84DMOor2yQcbDcMsLhP0V2whVy4R_WBLTF5ckK9_GbRYmZW8Zhmy97BNn_3j6k1zxSswglGIldEh8';
 
+  // The single system-wide Super Admin. Only this email gets the Super Admin portal.
+  const SUPER_ADMIN_EMAIL = 'hyy7010@gmail.com';
+
   MKR.supa = {
-    client, signupClient, URL, ANON, TABLES, VAPID_PUBLIC, enabled: !!client,
-    // username -> synthetic email (staff only need to remember username + password)
-    emailFor: (u)=> `${String(u||'').trim().toLowerCase()}@mkr.app`
+    client, signupClient, URL, ANON, TABLES, VAPID_PUBLIC, enabled: !!client, SUPER_ADMIN_EMAIL,
+    // identifier -> email. A real email (contains "@") is used as-is; a plain
+    // username becomes the synthetic "username@mkr.app".
+    emailFor: (u)=>{ u=String(u||'').trim().toLowerCase(); return u.includes('@') ? u : `${u}@mkr.app`; }
   };
 })();
