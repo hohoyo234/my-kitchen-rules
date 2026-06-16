@@ -41,6 +41,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       {id:'audit',     label:'Audit log',    em:'🔍', short:'Audit'},
       {id:'labor',     label:'Labor cost',   em:'💰', short:'Labor'},
       {id:'team',      label:'Team',         em:'👥', short:'Team'},
+      {id:'branches',  label:'Branches',     em:'🏢', short:'Branches'},
       {id:'compliance',label:'Compliance',   em:'🛡️', short:'Comply'},
       {id:'feedback',  label:'Feedback',     em:'⭐', short:'Reviews'},
       {id:'switch',    label:'Switch view',  em:'👁', short:'Switch'},
@@ -61,6 +62,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       if(section==='audit') return audit(c);
       if(section==='labor') return labor(c);
       if(section==='team') return team(c,arg);
+      if(section==='branches') return branches(c);
       if(section==='compliance') return compliance(c);
       if(section==='feedback') return feedback(c);
       if(section==='switch') return switchView(c);
@@ -360,6 +362,61 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         close(); U.toast('Pay rates saved','green'); if(after) after();
       }}
     ]});
+  }
+
+  // ---------- Branches (the owner's own venues — add & switch) ----------
+  async function branches(c){
+    const sess=MKR.auth.current();
+    const all=await MKR.db.getAll('kitchens');
+    const users=await MKR.db.getAll('users');
+    const mine=all.filter(k=>k.ownerId===sess.id || k.id===sess.kitchenId);
+    function draw(){
+      c.innerHTML=`
+        <div class="section-head"><div><h2>Branches</h2><p>Your venues — add a new branch and switch between them to manage each one</p></div>
+          <button class="btn btn-accent btn-sm" id="addBranch">＋ Add branch</button></div>
+        <div class="grid g3" style="margin-bottom:16px">
+          <div class="card stat"><div class="k">🏢 Branches</div><div class="v">${mine.length}</div></div>
+          <div class="card stat"><div class="k">📍 Current</div><div class="v" style="font-size:18px">${U.esc((mine.find(k=>k.id===sess.kitchenId)||{}).name||'—')}</div></div>
+          <div class="card stat"><div class="k">👥 People (current)</div><div class="v">${users.filter(u=>(u.kitchenId||'k_main')===sess.kitchenId && u.role!=='owner' && !u.offboarded).length}</div></div>
+        </div>
+        <div class="card" style="padding:8px 18px"><div class="list" id="blist"></div></div>
+        <div class="disclaimer mt16"><span>🏢</span>Switching a branch changes which venue's team, menu and settings you manage. Your current branch is highlighted and its logo/name shows on the sign-in page.</div>`;
+      const el=U.qs('#blist',c);
+      el.innerHTML = mine.length? mine.map(k=>{
+        const active=k.id===sess.kitchenId;
+        const mem=users.filter(u=>(u.kitchenId||'k_main')===k.id && u.role!=='owner' && !u.offboarded);
+        const logo=k.logo?`<img src="${k.logo}" class="kit-logo">`:'<div class="ava">🏢</div>';
+        return `<div class="li">${logo}
+          <div class="meta"><b>${U.esc(k.name)} ${active?'<span class="pill ok">Current</span>':''} ${k.primary?'<span class="pill ghost">Primary</span>':''}</b><span>${U.esc(k.location||'—')} · ${mem.length} people · ID ${U.esc(k.id)}</span></div>
+          ${active?'':`<button class="btn btn-ghost btn-sm" data-sw="${k.id}">Switch ›</button>`}</div>`;
+      }).join('') : '<div class="empty"><div class="em">🏢</div><p>No branches yet</p></div>';
+      U.qsa('[data-sw]',el).forEach(b=>b.onclick=async()=>{
+        const k=mine.find(x=>x.id===b.dataset.sw);
+        MKR.auth.switchKitchen(b.dataset.sw);
+        await MKR.features.load();
+        if(k) await MKR.db.meta('brand', {name:k.name, avatar:k.logo||null});
+        U.toast('Switched to '+(k?k.name:'branch'),'green');
+        location.hash='#/owner/dashboard'; MKR.router.render();
+      });
+      U.qs('#addBranch',c).onclick=addBranch;
+    }
+    function addBranch(){
+      const wrap=U.el(`<div>
+        <div class="field"><label>Branch name</label><input class="input" id="b_name" placeholder="e.g. My Kitchen · Sydney"></div>
+        <div class="field"><label>Location</label><input class="input" id="b_loc" placeholder="e.g. Sydney, NSW"></div>
+        <div class="row"><div class="field grow"><label>Opening time</label><input class="input" id="b_open" type="time" value="09:00"></div>
+        <div class="field grow"><label>Closing time</label><input class="input" id="b_close" type="time" value="22:00"></div></div>
+        <div class="disclaimer"><span>ℹ️</span>Adds a new venue you own. Switch to it to set up its team, menu and features.</div>
+      </div>`);
+      U.modal('Add a branch', wrap, {actions:[{label:'Add branch', class:'btn-dark', onClick:async(close)=>{
+        const name=U.qs('#b_name',wrap).value.trim(); if(!name){ U.toast('Please enter a name','red'); return; }
+        const id='k_'+Math.random().toString(36).slice(2,8);
+        await MKR.db.put('kitchens',{id, name, location:U.qs('#b_loc',wrap).value.trim(), status:'active', ownerId:sess.id, primary:false, setupComplete:true, logo:null, operatingHours:{open:U.qs('#b_open',wrap).value, close:U.qs('#b_close',wrap).value}, createdAt:Date.now()});
+        await MKR.audit.log({action:'kitchen.create', desc:`Added branch ${name}`});
+        close(); U.toast('Branch added — switch to it to set it up','green'); branches(c);
+      }}]});
+    }
+    draw();
   }
 
   // ---------- Super Admin · multi-tenant Kitchens ----------
