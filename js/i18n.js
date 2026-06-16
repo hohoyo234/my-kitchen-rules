@@ -492,6 +492,37 @@ window.MKR = window.MKR || {};
     // ---- Staff: own sensitive info ----
     "Your TFN is encrypted at rest. You can see your own here; for other staff, only the owner can reveal it (Privacy Act TFN Rule).":"你的 TFN 静态加密存储。你可在此查看自己的；其他员工的仅老板可查看（隐私法 TFN 规则）。",
     "All set — your documents are encrypted and stored. Tap any item above to view or update.":"已就绪 —— 你的文件已加密存储。点击上方任一项即可查看或更新。",
+
+    // ---- AI assistant ----
+    "🤖 Assistant":"🤖 智能助手", "Ask about a feature or your shifts…":"问我功能或你的班次…",
+    "What are my shifts?":"我的班次是？", "How many hours this week?":"本周多少工时？",
+    "My pay estimate":"我的薪资预估", "How do I clock in?":"怎么打卡？", "My TFN":"我的税号 TFN",
+    "How do I roster the team?":"怎么给团队排班？", "How do I add a user?":"怎么添加员工？",
+    "This week's wages":"本周工资", "Post an SOS cover":"发布 SOS 补班",
+    "Today's revenue":"今日营业额", "How many staff?":"有多少员工？", "Add a branch":"添加分店",
+    "Set pay rates":"设置薪资费率", "How does compliance work?":"合规怎么用？",
+    "Pending applications":"待审批申请", "How do I approve a restaurant?":"怎么审批餐厅？",
+    "Switch into a venue":"进入某个门店", "How do I sign in?":"怎么登录？",
+    "What is this app?":"这个系统是什么？", "Switch to 中文":"切换到中文",
+
+    // ---- Manager: My shifts ----
+    "My shifts":"我的班次",
+    "Your own roster · clock in on the day · add a shift for yourself":"你的个人排班 · 当天打卡 · 可为自己加班次",
+    "＋ Add my shift":"＋ 为我加班次", "Add my shift":"为我加班次",
+    "No shifts rostered for you this week — tap “Add my shift”.":"本周暂无你的排班 —— 点「为我加班次」。",
+    "The owner can also place your shifts. Anything here syncs with the team roster.":"老板也可为你排班。此处的改动会与团队排班同步。",
+    "Shift added to your roster":"班次已加入你的排班", "Day":"星期",
+
+    // ---- Owner: Branches ----
+    "Branches":"分店",
+    "Your venues — add a new branch and switch between them to manage each one":"你的门店 —— 添加新分店并在它们之间切换以分别管理",
+    "＋ Add branch":"＋ 添加分店", "Add a branch":"添加分店", "Add branch":"添加分店",
+    "🏢 Branches":"🏢 分店", "📍 Current":"📍 当前", "👥 People (current)":"👥 人数（当前）",
+    "Current":"当前", "Branch name":"分店名称",
+    "No branches yet":"暂无分店",
+    "Switching a branch changes which venue's team, menu and settings you manage. Your current branch is highlighted and its logo/name shows on the sign-in page.":"切换分店会改变你所管理门店的团队、菜单与设置。当前分店会高亮，其 Logo/名称会显示在登录页。",
+    "Adds a new venue you own. Switch to it to set up its team, menu and features.":"添加一个你拥有的新门店。切换到它即可设置其团队、菜单与功能。",
+    "Branch added — switch to it to set it up":"分店已添加 —— 切换过去即可设置",
   };
 
   // Templated strings (numbers / names interpolated) — exact match can't catch

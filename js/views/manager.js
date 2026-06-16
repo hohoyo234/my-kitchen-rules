@@ -17,6 +17,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     home:'schedule', subtitle:'Run operations & lead the team · roster / add users / review',
     nav:[
       {id:'schedule', label:'Rostering',   em:'📅', short:'Roster', feature:'schedule'},
+      {id:'myshifts', label:'My shifts',   em:'🙋', short:'Mine'},
       {id:'hire',     label:'Add Users',   em:'➕', short:'Add',    feature:'hire'},
       {id:'menu',     label:'Menu & Items',em:'🍔', short:'Menu',   feature:'menu'},
       {id:'tasks',    label:'Tasks',       em:'✅', short:'Tasks',  feature:'tasks'},
@@ -34,6 +35,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       if(section==='kds') return MKR.views.kds.render(c);
       if(section==='qr') return qrcodes(c);
       if(section==='schedule') return schedule(c);
+      if(section==='myshifts') return myShifts(c);
       if(section==='hire') return hire(c);
       if(section==='menu') return menuManager(c);
       if(section==='tasks') return tasks(c);
@@ -415,6 +417,68 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       ]});
     }
     draw();
+  }
+
+  // ---------- Manager's own shifts (view + self-roster + clock-in) ----------
+  async function myShifts(c){
+    const sess=MKR.auth.current();
+    const todayIdx=(new Date().getDay()+6)%7;
+    const settings=await MKR.db.meta('settings')||{};
+    const slots=settings.shiftSlots||[{label:'Morning',start:'09:00',end:'15:00'},{label:'Evening',start:'15:00',end:'22:00'}];
+    let shifts=[], clockins=[];
+    async function reload(){
+      shifts=(await MKR.db.getAll('shifts')).filter(s=>s.staffId===sess.id).sort((a,b)=>a.day-b.day||a.start.localeCompare(b.start));
+      clockins=(await MKR.db.getAll('clockins')).filter(k=>k.staffId===sess.id);
+    }
+    function draw(){
+      const total=U.round2(shifts.reduce((t,s)=>t+hrs(s.start,s.end),0));
+      c.innerHTML=`
+        <div class="section-head"><div><h2>My shifts</h2><p>Your own roster · clock in on the day · add a shift for yourself</p></div>
+          <div class="row gap8 center"><span class="pill ghost">${U.hrs(total)} this week</span><button class="btn btn-accent btn-sm" id="addMine">＋ Add my shift</button></div></div>
+        ${shifts.length?`<div class="alert info" style="margin-bottom:16px"><span>⏰</span><div>Next shift <b>${DAYS[shifts[0].day]} ${shifts[0].start}</b> — you'll get a reminder 1 hour before.</div></div>`:''}
+        <div class="list card" style="padding:8px 18px" id="slist"></div>
+        <div class="disclaimer mt16"><span>📅</span>The owner can also place your shifts. Anything here syncs with the team roster.</div>`;
+      const el=U.qs('#slist',c);
+      if(!shifts.length){ el.innerHTML=`<div class="empty"><div class="em">🌴</div><p>No shifts rostered for you this week — tap “Add my shift”.</p></div>`; }
+      else el.innerHTML=shifts.map(s=>{
+        const ck=clockins.find(k=>k.shiftId===s.id); const isToday=s.day===todayIdx;
+        let right;
+        if(isToday) right = ck?(ck.late?`<span class="pill danger">Late ${ck.lateMins}′</span>`:`<span class="pill ok">Clocked in ${U.fmtTime(ck.clockTs)}</span>`):`<button class="btn btn-green btn-sm" data-clock="${s.id}">Clock in</button>`;
+        else right=`<button class="btn btn-ghost btn-sm" data-rm="${s.id}">Remove</button>`;
+        return `<div class="li"><div class="ava">${DAYS[s.day][0]}</div>
+          <div class="meta"><b>${DAYS[s.day]} · ${s.start} – ${s.end}${isToday?' · <span style="color:var(--accent)">Today</span>':''}</b><span>${U.fmtDate(MKR.seed.dayTs(s.day))} · ${U.hrs(hrs(s.start,s.end))}</span></div>${right}</div>`;
+      }).join('');
+      U.qsa('[data-clock]',el).forEach(b=>b.onclick=()=>clockIn(shifts.find(x=>x.id===b.dataset.clock)));
+      U.qsa('[data-rm]',el).forEach(b=>b.onclick=async()=>{ await MKR.db.remove('shifts',b.dataset.rm); await MKR.audit.log({action:'shift.remove',desc:'Manager removed own shift'}); await reload(); draw(); U.toast('Shift removed','amber'); });
+      U.qs('#addMine',c).onclick=addMine;
+    }
+    async function clockIn(shift){
+      const startTs=MKR.alerts.shiftStartTs(shift);
+      const lateMins=Math.max(0,Math.round((Date.now()-startTs)/60000)); const late=lateMins>5;
+      await MKR.db.put('clockins',{staffId:sess.id, shiftId:shift.id, date:U.todayISO(), scheduledTs:startTs, clockTs:Date.now(), lateMins, late});
+      const ns=(await MKR.db.getAll('alerts')).find(a=>a.key==='noshow-'+shift.id && !a.read); if(ns) await MKR.db.put('alerts',{id:ns.id, read:true});
+      U.toast(late?`Clocked in · ${lateMins} min late`:'Clocked in · on time 👍', late?'amber':'green');
+      await reload(); draw();
+    }
+    function addMine(){
+      const dayOpts=DAYS.map((d,i)=>`<option value="${i}" ${i===todayIdx?'selected':''}>${d}</option>`).join('');
+      const slotPick=slots.map((s,i)=>`<option value="${i}">${U.esc(s.label)} ${s.start}-${s.end}</option>`).join('');
+      const wrap=U.el(`<div>
+        <div class="field"><label>Day</label><select class="input" id="md">${dayOpts}</select></div>
+        <div class="field"><label>Quick slot</label><select class="input" id="ms"><option value="">Custom</option>${slotPick}</select></div>
+        <div class="row"><div class="field grow"><label>Start</label><input class="input" id="mst" type="time" value="${slots[0]?slots[0].start:'09:00'}"></div>
+        <div class="field grow"><label>End</label><input class="input" id="met" type="time" value="${slots[0]?slots[0].end:'15:00'}"></div></div>
+      </div>`);
+      U.qs('#ms',wrap).onchange=(e)=>{ const i=e.target.value; if(i!==''){ U.qs('#mst',wrap).value=slots[i].start; U.qs('#met',wrap).value=slots[i].end; } };
+      U.modal('Add my shift', wrap, {actions:[{label:'Save shift', class:'btn-dark', onClick:async(close)=>{
+        const day=+U.qs('#md',wrap).value, start=U.qs('#mst',wrap).value, end=U.qs('#met',wrap).value;
+        if(hrs(start,end)<=0){ U.toast('End time must be after start','red'); return; }
+        await MKR.db.put('shifts',{staffId:sess.id, day, start, end});
+        await MKR.audit.log({action:'shift.create', desc:`${sess.name} self-rostered ${DAYS[day]} ${start}-${end}`});
+        await reload(); close(); draw(); U.toast('Shift added to your roster','green');
+      }}]});
+    }
+    await reload(); draw();
   }
 
   // ---------- One-Click Add Users ----------

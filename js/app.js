@@ -23,5 +23,7 @@
   if(!location.hash) location.hash = sess ? `#/${sess.role}/${MKR.portals[sess.role].home}` : '#/login';
   MKR.router.render();
 
+  try{ if(MKR.assistant) MKR.assistant.mount(); }catch(e){}   // floating help assistant
+
   window.MKR_RESET = MKR.seed.reset;
 })();

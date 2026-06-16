@@ -125,6 +125,9 @@ window.MKR = window.MKR || {};
     },
     exitImpersonate(){ if(this._realProfile){ this._profile=this._realProfile; this._realProfile=null; this._saveLocal(this._profile); } },
 
+    // ---- Owner switches the active branch (tenant) for this session ----
+    switchKitchen(kitchenId){ if(!this._profile||!kitchenId) return; this._profile.kitchenId=kitchenId; this._saveLocal(this._profile); return this._profile; },
+
     // ---- Continue with Google (kept for the future real-auth path) ----
     async loginWithGoogle(){
       if(!MKR.supa.client) return {ok:false, msg:'Cloud not connected'};
