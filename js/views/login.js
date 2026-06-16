@@ -53,10 +53,21 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
           </div>
 
           <div id="applyPane" class="hidden"></div>
+          <div id="approvedStrip"></div>
         </div>
       </div>`;
 
       if(MKR.i18n) MKR.i18n.bindSwitchers(root);
+
+      // Approved restaurants' logos sync onto the login page.
+      try{
+        const kitch = (await MKR.db.getAll('kitchens')).filter(k=>k.status==='active' && k.logo);
+        if(kitch.length){
+          U.qs('#approvedStrip',root).innerHTML =
+            `<div class="logo-strip"><span class="faint">Restaurants on My Kitchen</span><div class="logo-strip-row">`+
+            kitch.map(k=>`<img src="${k.logo}" alt="${U.esc(k.name)}" title="${U.esc(k.name)}">`).join('')+`</div></div>`;
+        }
+      }catch(e){}
 
       // ----- Tab switching -----
       const tabs=U.qs('#loginTabs',root), signinPane=U.qs('#signinPane',root), applyPane=U.qs('#applyPane',root);
@@ -152,11 +163,18 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
 
       // 2) Record the application (pending) for the Super Admin to review.
       const kitchenId='k_'+(ownerUid?ownerUid.slice(0,8):Math.random().toString(36).slice(2,10));
+      const ownerId='u_'+Math.random().toString(36).slice(2,10);
       await MKR.db.put('kitchens', {
         id:kitchenId, name, location:addr, status:'pending', primary:false,
-        ownerUid, ownerUsername:username, onboardedOwner:false, via:'application',
+        ownerId, ownerUid, ownerUsername:username, onboardedOwner:false, setupComplete:false, logo:null, via:'application',
+        phone, email, website:v('a_web'), operatingHours:{open:v('a_open'),close:v('a_close')},
         application:{ address:addr, website:v('a_web'), phone, email, hours:{open:v('a_open'),close:v('a_close')}, name, username, submittedAt:Date.now() },
         createdAt:Date.now()
+      });
+      // Local owner account (pending) — lets them sign in once approved.
+      await MKR.db.put('users', {
+        id:ownerId, role:'owner', name:name, username, email, pw:pass, status:'pending',
+        kitchenId, emoji:'👑', onboarded:false, createdAt:Date.now()
       });
 
       // 3) Notify the Super Admin (in-app alert + push if available).
@@ -175,4 +193,54 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         ${authMsg && !ownerUid ? `<div class="alert amber mt12"><span>⚠️</span><div>Note: ${U.esc(authMsg)} — your application was still recorded; the Super Admin can provision your login on approval.</div></div>`:''}`;
     };
   }
+
+  // ===== Manager join-by-link (#/join/<kitchenId>) =====
+  MKR.join = {
+    async render(root, kitchenId){
+      kitchenId = (kitchenId||'').trim();
+      let kitchen=null; try{ kitchen = await MKR.db.get('kitchens', kitchenId); }catch(e){}
+      const valid = kitchen && kitchen.status==='active';
+      root.innerHTML = `
+      <div class="login-wrap"><div class="card login-card">
+        <div class="row center gap8"><div class="login-logo">${kitchen&&kitchen.logo?`<img src="${kitchen.logo}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`:'M'}</div>
+          <div><b style="font-size:18px">${valid?U.esc(kitchen.name):'My Kitchen Rules'}</b><div class="faint" style="font-size:12.5px">${valid?'Join the team':'Invalid invite link'}</div></div></div>
+        ${valid?`
+          <div class="disclaimer mt16"><span>📋</span>You've been invited to join <b>${U.esc(kitchen.name)}</b> as a manager. Create your login below — you'll be added to the team right away.</div>
+          <div class="field"><label>Your name</label><input class="input" id="j_name" placeholder="e.g. Sam Lee"></div>
+          <div class="row">
+            <div class="field grow"><label>Choose a username</label><input class="input" id="j_user" autocomplete="off" placeholder="e.g. samlee"></div>
+            <div class="field grow"><label>Choose a password</label><input class="input" id="j_pass" type="password" autocomplete="new-password" placeholder="min 6 characters"></div>
+          </div>
+          <div class="field"><label>Role</label><select class="input" id="j_role"><option value="manager">📋 Manager</option><option value="staff">🧑‍🍳 Staff</option></select></div>
+          <div id="jerr" class="alert red hidden" style="margin-bottom:12px"></div>
+          <button class="btn btn-accent btn-block" id="jbtn">Join ${U.esc(kitchen.name)}</button>
+        ` : `
+          <div class="alert red mt16"><span>⚠️</span><div>This invite link is invalid or the restaurant isn't active yet. Please check with the owner.</div></div>
+          <a class="btn btn-ghost btn-block mt12" href="#/login">← Back to sign in</a>
+        `}
+      </div></div>`;
+      if(!valid) return;
+
+      const err=U.qs('#jerr',root); const showErr=(m)=>{ err.textContent='⚠️ '+m; err.classList.remove('hidden'); };
+      U.qs('#jbtn',root).onclick=async()=>{
+        err.classList.add('hidden');
+        const name=U.qs('#j_name',root).value.trim();
+        const username=U.qs('#j_user',root).value.trim().toLowerCase().replace(/\s+/g,'');
+        const pass=U.qs('#j_pass',root).value;
+        const role=U.qs('#j_role',root).value;
+        if(!name) return showErr('Please enter your name');
+        if(username.length<3) return showErr('Username must be at least 3 characters');
+        if(pass.length<6) return showErr('Password must be at least 6 characters');
+        const existing=(await MKR.db.getAll('users')).find(u=>(u.username||'').toLowerCase()===username);
+        if(existing) return showErr('That username is already taken — pick another');
+        const id='u_'+Math.random().toString(36).slice(2,10);
+        await MKR.db.put('users',{ id, role, name, username, pw:pass, status:'active', kitchenId,
+          emoji: role==='manager'?'📋':'🧑‍🍳', onboarded: role==='manager', position: role==='manager'?'Manager':'', createdAt:Date.now() });
+        await MKR.db.put('alerts',{type:'join', level:'amber', title:'New team member joined', desc:`${name} joined ${kitchen.name} as ${role}`, read:false, ts:Date.now()});
+        const m=U.modal('✅ Welcome to '+U.esc(kitchen.name), `
+          <div class="alert green"><span>🎉</span><div>You've joined <b>${U.esc(kitchen.name)}</b> as ${role==='manager'?'a manager':'staff'}. Sign in with the username and password you just chose.</div></div>`,
+          {actions:[{label:'Go to sign in', class:'btn-dark', onClick:(cl)=>{ cl(); location.hash='#/login'; MKR.router.render(); }}]});
+      };
+    }
+  };
 })();

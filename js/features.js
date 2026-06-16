@@ -23,28 +23,40 @@ window.MKR = window.MKR || {};
 
   let _cache=null;
 
+  // Each kitchen (tenant) carries its own `modules` selection; we fall back to the
+  // legacy global app_meta.settings.modules and then to DEFAULTS.
+  async function savedModules(){
+    const sess = MKR.auth && MKR.auth.current && MKR.auth.current();
+    if(sess && sess.kitchenId){
+      try{ const k = await MKR.db.get('kitchens', sess.kitchenId); if(k && k.modules && Object.keys(k.modules).length) return k.modules; }catch(e){}
+    }
+    const s = (await MKR.db.meta('settings')) || {};
+    return s.modules || {};
+  }
+
   const F = {
     DEFAULTS,
     async load(){
-      const s = (await MKR.db.meta('settings')) || {};
-      const saved = s.modules || {};
+      const saved = await savedModules();
       const merged = {};
       for(const k in DEFAULTS) merged[k] = {...DEFAULTS[k], ...(saved[k]||{})};
       _cache = merged; return merged;
     },
     get(){ return _cache || DEFAULTS; },
     config(key){ return (_cache||DEFAULTS)[key]; },
-    // Whether the module is open to a given role (owner is super admin — sees every enabled module)
+    // Whether the module is open to a given role (owner / superadmin see every enabled module)
     can(key, role){
       const m = (_cache||DEFAULTS)[key];
       if(!m) return true;                 // unregistered modules are always allowed
-      if(role==='owner') return !!m.on;   // owner passes through (not role-restricted)
+      if(role==='owner'||role==='superadmin') return !!m.on;
       return !!m.on && (!role || (m.roles||[]).includes(role));
     },
-    async save(modules){
-      const s = (await MKR.db.meta('settings')) || {};
-      s.modules = modules;
-      await MKR.db.meta('settings', s);
+    // Persist onto the current kitchen (per-tenant); fall back to global settings.
+    async save(modules, kitchenId){
+      const sess = MKR.auth && MKR.auth.current && MKR.auth.current();
+      const kid = kitchenId || (sess && sess.kitchenId);
+      if(kid){ await MKR.db.put('kitchens', {id:kid, modules}); }
+      else { const s=(await MKR.db.meta('settings'))||{}; s.modules=modules; await MKR.db.meta('settings', s); }
       _cache = null; await F.load();
     }
   };

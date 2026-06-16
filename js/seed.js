@@ -18,16 +18,16 @@ window.MKR = window.MKR || {};
     {id:'m_ice',  cat:'Desserts', nm:'Coconut Sago',          price:6.5,  recipe:{sago:0.1}},
   ];
 
-  // Three-portal accounts (demo)
+  // Three-portal accounts (demo). `pw` enables the local-first login path.
   S.USERS = [
-    {id:'u_boss', role:'owner',   name:'James Carter', username:'boss', pin:'1111', emoji:'👑'},
-    {id:'u_mgr',  role:'manager', name:'Maria Lopez',  username:'mgr',  pin:'2222', emoji:'📋'},
+    {id:'u_boss', role:'owner',   name:'James Carter', username:'boss', pw:'boss1111', status:'active', emoji:'👑'},
+    {id:'u_mgr',  role:'manager', name:'Maria Lopez',  username:'mgr',  pw:'mgr2222',  status:'active', emoji:'📋'},
     // Staff
-    {id:'u_amy',  role:'staff', name:'Amy',  username:'amy',  pin:'3333', emoji:'🧑‍🍳',
+    {id:'u_amy',  role:'staff', name:'Amy',  username:'amy',  pw:'amy3333',  status:'active', emoji:'🧑‍🍳',
       age:22, employment:'casual',   baseRate:28.26, visa:'student', position:'Front of House', onboarded:true},
-    {id:'u_kevin',role:'staff', name:'Kevin',username:'kevin',pin:'3333', emoji:'🧑‍🍳',
+    {id:'u_kevin',role:'staff', name:'Kevin',username:'kevin',pw:'kevin3333',status:'active', emoji:'🧑‍🍳',
       age:31, employment:'parttime', baseRate:25.41, visa:'none',    position:'Kitchen',        onboarded:true},
-    {id:'u_leo',  role:'staff', name:'Leo',  username:'leo',  pin:'3333', emoji:'🧑‍🍳',
+    {id:'u_leo',  role:'staff', name:'Leo',  username:'leo',  pw:'leo3333',  status:'active', emoji:'🧑‍🍳',
       age:19, employment:'casual',   baseRate:24.10, visa:'student', position:'Kitchen',        onboarded:false},
   ];
 
@@ -52,9 +52,12 @@ window.MKR = window.MKR || {};
     dailyTasks:['Fridge temperature check','Deep clean kitchen','Prep check','Mop floors','Closing fridge stocktake photo'],
   };
 
-  // Default kitchen / venue (multi-tenant root)
+  // Default kitchen / venue (multi-tenant root) — already set up and approved.
   S.KITCHENS = [
-    {id:'k_main', name:'My Kitchen · Melbourne', location:'Melbourne, VIC', status:'active', ownerId:'u_boss', primary:true, createdAt:Date.now()-90*24*3600e3},
+    {id:'k_main', name:'My Kitchen · Melbourne', location:'Melbourne, VIC', status:'active',
+     ownerId:'u_boss', primary:true, setupComplete:true, logo:null,
+     phone:'03 9000 0000', email:'hello@mykitchen.au', website:'https://mykitchen.au',
+     operatingHours:{open:'09:00', close:'22:00'}, createdAt:Date.now()-90*24*3600e3},
   ];
 
   // This week's roster (Monday as the start, relative to today)
@@ -83,6 +86,7 @@ window.MKR = window.MKR || {};
     for(const m of S.MENU)  await MKR.db.put('menu',  {...m, kitchenId:'k_main'});
     for(const s of S.SHIFTS) await MKR.db.put('shifts', {...s});
     await MKR.db.meta('settings', S.SETTINGS);
+    await MKR.db.meta('brand', {name:S.SETTINGS.shopName, avatar:null});
     // Today's task instances
     for(let i=0;i<S.SETTINGS.dailyTasks.length;i++)
       await MKR.db.put('tasks', {id:'t'+i, name:S.SETTINGS.dailyTasks[i], date:MKR.util.todayISO(), done:false, photo:null, by:null});
