@@ -41,7 +41,6 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       {id:'audit',     label:'Audit log',    em:'🔍', short:'Audit'},
       {id:'labor',     label:'Labor cost',   em:'💰', short:'Labor'},
       {id:'team',      label:'Team',         em:'👥', short:'Team'},
-      {id:'kitchens',  label:'Super Admin',  em:'🏢', short:'Admin'},
       {id:'compliance',label:'Compliance',   em:'🛡️', short:'Comply'},
       {id:'feedback',  label:'Feedback',     em:'⭐', short:'Reviews'},
       {id:'switch',    label:'Switch view',  em:'👁', short:'Switch'},
@@ -49,19 +48,70 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     ],
     async badges(){ const a=(await MKR.db.getAll('alerts')).filter(x=>!x.read && x.level==='red').length; return a?{alerts:a}:{}; },
     async view(section,c,arg){
+      // First-run setup gate: a freshly-approved owner must add a logo + pick features.
+      const sess=MKR.auth.current();
+      if(sess && sess.role==='owner' && sess.kitchenId){
+        const k=await MKR.db.get('kitchens', sess.kitchenId);
+        if(k && k.setupComplete===false && section!=='setup') return setupWizard(c, k);
+      }
+      if(section==='setup') return setupWizard(c, sess && sess.kitchenId ? await MKR.db.get('kitchens', sess.kitchenId) : null);
       if(section==='dashboard') return dashboard(c);
       if(section==='report') return report(c);
       if(section==='alerts') return alerts(c);
       if(section==='audit') return audit(c);
       if(section==='labor') return labor(c);
       if(section==='team') return team(c,arg);
-      if(section==='kitchens') return kitchens(c,arg);
       if(section==='compliance') return compliance(c);
       if(section==='feedback') return feedback(c);
       if(section==='switch') return switchView(c);
       if(section==='settings') return settings(c);
     }
   };
+
+  // ---------- First-run owner setup wizard (logo + feature selection) ----------
+  async function setupWizard(c, kitchen){
+    const sess=MKR.auth.current();
+    kitchen = kitchen || {id:sess&&sess.kitchenId, name:'Your restaurant'};
+    const mods = await MKR.features.load();
+    const work = JSON.parse(JSON.stringify(mods));
+    let logo = kitchen.logo || null;
+    c.innerHTML=`
+      <div class="section-head"><div><h2>Welcome — let's set up ${U.esc(kitchen.name||'your restaurant')}</h2>
+        <p>Two quick steps: add your logo, then choose the features you want. You can change these later in Settings.</p></div></div>
+      <div class="grid g2" style="align-items:start">
+        <div class="card" style="padding:22px">
+          <div class="section-title">1 · Restaurant logo</div>
+          <p class="muted" style="font-size:13px;margin-bottom:10px">Your logo appears on the sign-in page and in every portal.</p>
+          <label class="img-drop"><div class="img-preview" id="logoPrev">${logo?`<img src="${logo}">`:'<span>📷 Tap to upload your logo</span>'}</div><input type="file" id="logoFile" accept="image/*" hidden></label>
+          <div class="field mt12"><label>Display name</label><input class="input" id="setName" value="${U.esc(kitchen.name||'')}"></div>
+        </div>
+        <div class="card" style="padding:22px">
+          <div class="section-title">2 · Choose your features</div>
+          <p class="muted" style="font-size:13px;margin-bottom:10px">Tick the modules you want. Unticked ones are hidden from your team.</p>
+          <div id="featList"></div>
+        </div>
+      </div>
+      <div class="row gap8 mt16" style="max-width:560px"><button class="btn btn-dark grow" id="finishSetup">✅ Finish setup</button></div>
+      <div class="disclaimer mt12"><span>ℹ️</span>You can revisit Settings anytime to toggle features or switch language.</div>`;
+    U.qs('#logoFile',c).onchange=(e)=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ logo=r.result; U.qs('#logoPrev',c).innerHTML=`<img src="${logo}">`; }; r.readAsDataURL(f); };
+    const fl=U.qs('#featList',c);
+    fl.innerHTML=Object.keys(work).map(k=>{
+      const m=work[k];
+      return `<label class="onb-item" style="cursor:pointer">
+        <input type="checkbox" data-feat="${k}" ${m.on?'checked':''} style="width:20px;height:20px">
+        <div class="grow"><b>${U.esc(m.label)}</b><div class="faint" style="font-size:12px">for ${(m.roles||[]).join(', ')||'everyone'}</div></div></label>`;
+    }).join('');
+    U.qsa('[data-feat]',fl).forEach(ch=>ch.onchange=()=>{ work[ch.dataset.feat].on=ch.checked; });
+    U.qs('#finishSetup',c).onclick=async()=>{
+      const name=U.qs('#setName',c).value.trim()||kitchen.name;
+      await MKR.db.put('kitchens',{id:kitchen.id, name, logo, modules:work, setupComplete:true});
+      await MKR.features.save(work, kitchen.id);
+      await MKR.db.meta('brand', {name, avatar:logo});       // syncs logo to the login page
+      await MKR.audit.log({action:'settings.update', desc:'Completed restaurant setup'});
+      U.toast('Setup complete — welcome aboard! 🎉','green');
+      location.hash='#/owner/dashboard'; MKR.router.render();
+    };
+  }
 
   // ---------- Customer feedback (bad-review interception) ----------
   async function feedback(c){
@@ -375,25 +425,50 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
 
   async function team(c, arg){
     if(arg) return staffPage(c, arg);   // full-page staff profile
+    const sess=MKR.auth.current();
+    const kid=(sess&&sess.kitchenId)||'k_main';
     const settings=await MKR.db.meta('settings');
-    const users=(await MKR.db.getAll('users')).filter(u=>u.role==='staff');
+    const all=(await MKR.db.getAll('users')).filter(u=>(u.kitchenId||'k_main')===kid && u.role!=='owner');
+    const managers=all.filter(u=>u.role==='manager');
+    const staff=all.filter(u=>u.role==='staff');
     const shifts=await MKR.db.getAll('shifts');
     const visaHours=id=>U.round2(shifts.filter(s=>s.staffId===id).reduce((t,s)=>t+MKR.pay.hours(s.start,s.end),0));
-    const active=users.filter(u=>!u.offboarded).length;
-    c.innerHTML=`
-      <div class="section-head"><div><h2>Team</h2><p>Tap a staff member for the full, editable profile (phone / email / passport / visa / contract / bank / TFN)</p></div>
-        <span class="pill ghost">${active} active · ${users.length} total</span></div>
-      <div class="card" style="padding:8px 18px"><div class="list" id="tlist"></div></div>
-      <div class="disclaimer mt16"><span>🔒</span>Only the owner role can reveal a TFN / passport (each reveal is audited); offboarded staff data is encrypted and retained for 7 years for audit.</div>`;
-    const el=U.qs('#tlist',c);
-    el.innerHTML=users.map(u=>{
-      const h=visaHours(u.id); const near=u.visa==='student'&&h>=settings.visaCapFortnight-6;
+    const joinLink=`${location.origin}${location.pathname}#/join/${kid}`;
+
+    const row=(u)=>{
+      const h=visaHours(u.id); const near=u.visa==='student'&&h>=(settings.visaCapFortnight||48)-6;
+      const roleTag = `<span class="pill ${u.role==='manager'?'info':'ghost'}">${MKR.auth.roleName(u.role)}</span>`;
       return `<a class="li clickable" href="#/owner/team/${u.id}">
         <div class="ava">${u.emoji||U.initials(u.name)}</div>
-        <div class="meta"><b>${U.esc(u.name)} ${u.offboarded?'<span class="pill danger">Offboarded</span>':''}</b>
-          <span>ID ${U.esc(u.id)} · ${U.esc(u.position||EMP_LABEL(u.employment))} ${u.visa==='student'?`· student visa <b style="color:${near?'var(--red)':'inherit'}">${h.toFixed(2)}/${settings.visaCapFortnight}h</b>`:''} · ${u.onboarded?'onboarded':'pending'}</span></div>
+        <div class="meta"><b>${U.esc(u.name)} ${roleTag} ${u.offboarded?'<span class="pill danger">Offboarded</span>':''}</b>
+          <span>ID ${U.esc(u.id)} · ${U.esc(u.position||EMP_LABEL(u.employment))} ${u.visa==='student'?`· student visa <b style="color:${near?'var(--red)':'inherit'}">${h.toFixed(2)}/${(settings.visaCapFortnight||48)}h</b>`:''} · ${u.onboarded?'onboarded':'pending'}</span></div>
         <span class="faint" style="font-size:22px;line-height:1">›</span></a>`;
-    }).join('');
+    };
+
+    c.innerHTML=`
+      <div class="section-head"><div><h2>Team</h2><p>Your managers and staff · tap anyone to open their profile or change their role</p></div>
+        <button class="btn btn-dark btn-sm" id="joinBtn">🔗 Manager join link</button></div>
+      <div class="grid g3" style="margin-bottom:16px">
+        <div class="card stat"><div class="k">📋 Managers</div><div class="v">${managers.length}</div></div>
+        <div class="card stat"><div class="k">🧑‍🍳 Staff</div><div class="v">${staff.length}</div></div>
+        <div class="card stat"><div class="k">👥 Total people</div><div class="v">${all.length}</div></div>
+      </div>
+      <div class="card" style="padding:6px 18px;margin-bottom:16px"><div class="section-title" style="padding-top:12px">📋 Managers <span class="faint" style="font-size:12px">${managers.length}</span></div>
+        <div class="list">${managers.length?managers.map(row).join(''):'<div class="empty" style="padding:18px"><div class="em">📋</div><p>No managers yet — share the join link</p></div>'}</div></div>
+      <div class="card" style="padding:6px 18px"><div class="section-title" style="padding-top:12px">🧑‍🍳 Staff <span class="faint" style="font-size:12px">${staff.length}</span></div>
+        <div class="list">${staff.length?staff.map(row).join(''):'<div class="empty" style="padding:18px"><div class="em">🧑‍🍳</div><p>No staff yet</p></div>'}</div></div>
+      <div class="disclaimer mt16"><span>🔒</span>Only the owner can reveal a TFN / passport (each reveal is audited); offboarded staff data is encrypted and retained for 7 years.</div>`;
+
+    U.qs('#joinBtn',c).onclick=()=>{
+      const wrap=U.el(`<div>
+        <p class="muted" style="font-size:14px">Share this link with a manager. They open it, create their login, and instantly join <b>this restaurant</b>.</p>
+        <div class="field"><label>Manager join link</label><input class="input" id="jl" value="${joinLink}" readonly onclick="this.select()"></div>
+      </div>`);
+      U.modal('Invite a manager', wrap, {actions:[{label:'Copy link', class:'btn-dark', onClick:(cl)=>{
+        navigator.clipboard?.writeText(joinLink).then(()=>U.toast('Join link copied','green')).catch(()=>{});
+        cl();
+      }}]});
+    };
   }
 
   // ---------- Full staff profile (full page + editable) ----------
@@ -462,9 +537,11 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         </div>`;
       // Head actions
       const ha=U.qs('#headActions',c);
-      ha.innerHTML = `<button class="btn btn-dark btn-sm" id="editBtn">✏️ Edit profile</button>
+      ha.innerHTML = `<button class="btn btn-ghost btn-sm" id="roleBtn">🔀 ${MKR.auth.roleName(u.role)}</button>
+        <button class="btn btn-dark btn-sm" id="editBtn">✏️ Edit profile</button>
         ${u.offboarded?'<button class="btn btn-green btn-sm" id="restoreBtn">Reactivate</button>':'<button class="btn btn-danger btn-sm" id="offBtn">Offboard</button>'}`;
       U.qs('#editBtn',c).onclick=renderEdit;
+      U.qs('#roleBtn',c).onclick=changeRole;
       const offB=U.qs('#offBtn',c); if(offB) offB.onclick=()=>offboard();
       const reB=U.qs('#restoreBtn',c); if(reB) reB.onclick=async()=>{ await MKR.db.put('users',{id,offboarded:false,archivedAt:null,retentionUntil:null}); if(MKR.supa.client) await MKR.supa.client.from('profiles').update({active:true}).eq('staff_id',id); U.toast(u.name+' reactivated','green'); staffPage(c,id); };
       // Document viewers
@@ -526,6 +603,26 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         U.toast('Profile saved','green');
         staffPage(c,id);   // re-fetch and return to view
       };
+    }
+
+    function changeRole(){
+      const cur=u.role;
+      const opt=(r,em,lbl)=>`<button data-role="${r}" class="${cur===r?'active':''}">${em} ${lbl}</button>`;
+      const wrap=U.el(`<div>
+        <p class="muted" style="font-size:14px">Change ${U.esc(u.name)}'s role in this restaurant. Managers can run rostering, the menu and approvals; staff get the simple execution portal.</p>
+        <div class="role-seg" id="rseg">${opt('staff','🧑‍🍳','Staff')}${opt('manager','📋','Manager')}</div>
+      </div>`);
+      let pick=cur;
+      U.qsa('[data-role]',wrap).forEach(b=>b.onclick=()=>{ pick=b.dataset.role; U.qsa('[data-role]',wrap).forEach(x=>x.classList.toggle('active', x===b)); });
+      U.modal('Change role', wrap, {actions:[{label:'Save role', class:'btn-dark', onClick:async(cl)=>{
+        if(pick!==cur){
+          await MKR.db.put('users',{id, role:pick});
+          if(MKR.supa.client){ try{ await MKR.supa.client.from('profiles').update({role:pick}).eq('staff_id',id); }catch(e){} }
+          await MKR.audit.log({action:'staff.hire', desc:`Changed ${u.name}'s role to ${MKR.auth.roleName(pick)}`});
+          U.toast(`${u.name} is now ${MKR.auth.roleName(pick)}`,'green');
+        }
+        cl(); staffPage(c,id);
+      }}]});
     }
 
     async function offboard(){

@@ -390,6 +390,69 @@ window.MKR = window.MKR || {};
     "Uploaded · encrypted":"已上传 · 已加密",
     "Submitted · encrypted (owner-only)":"已提交 · 已加密（仅老板可见）",
     "📷 Photo":"📷 照片",
+
+    // ---- Login: apply for a restaurant ----
+    "Apply for a new restaurant system":"申请开通新餐厅系统",
+    "Apply to run your restaurant on My Kitchen. Only business owners may apply — a Super Admin reviews every request before your system is provisioned.":"申请在 My Kitchen 上运营你的餐厅。仅店主可申请 —— 超级管理员会先审核每个请求再开通系统。",
+    "Restaurant name":"餐厅名称", "Restaurant address":"餐厅地址", "Website (optional)":"网站（可选）",
+    "Contact phone":"联系电话", "Contact email":"联系邮箱",
+    "Owner login (for after approval)":"店主登录（审批通过后使用）",
+    "Choose a username":"设置用户名", "Choose a password":"设置密码",
+    "📩 Submit application":"📩 提交申请", "Submitting…":"提交中…",
+    "Application submitted!":"申请已提交！", "Your login username":"你的登录用户名", "Status":"状态",
+    "Pending approval":"待审批", "Restaurants on My Kitchen":"My Kitchen 上的餐厅",
+    "Your application is still pending approval":"你的申请仍在等待审批",
+    "Your restaurant is still pending approval":"你的餐厅仍在等待审批",
+    "Wrong username/email or password":"用户名 / 邮箱或密码错误",
+    "Wrong Super Admin password":"超级管理员密码错误",
+
+    // ---- Super Admin portal ----
+    "System administrator — approve venues & oversee every restaurant":"系统管理员 —— 审批门店并监管所有餐厅",
+    "Applications":"申请", "Restaurants":"餐厅",
+    "Restaurant applications":"餐厅申请",
+    "Review and approve new restaurants before their system is provisioned":"在开通系统前审核并批准新餐厅",
+    "⏳ Pending approval":"⏳ 待审批", "Recently decided":"近期已处理",
+    "No pending applications":"暂无待审批申请", "Nothing decided yet":"暂无处理记录",
+    "✓ Approve":"✓ 批准", "Reject":"驳回", "Rejected":"已驳回",
+    "Approved & provisioned — the owner can now sign in":"已批准并开通 —— 店主现在可以登录了",
+    "Application rejected":"申请已驳回", "Reject application":"驳回申请",
+    "All restaurants":"所有餐厅",
+    "Global visibility across every venue (tenant), their users and configuration":"全局查看每个门店（租户）及其用户与配置",
+    "＋ Create restaurant":"＋ 创建餐厅", "🏢 Restaurants":"🏢 餐厅", "⏳ Pending":"⏳ 待审批",
+    "Each restaurant is an isolated tenant. You have full visibility into every venue's users, data and configuration here.":"每个餐厅都是独立租户。你在此可全面查看每个门店的用户、数据与配置。",
+    "Create a restaurant":"创建餐厅", "Create (active)":"创建（启用）", "Restaurant created":"餐厅已创建",
+    "Step into any restaurant and see exactly what its owner, manager or staff see":"进入任意餐厅，查看其店主 / 经理 / 员工所见的界面",
+    "A banner at the top lets you return to the Super Admin console at any time.":"顶部横幅可让你随时返回超级管理员控制台。",
+    "No active restaurants":"暂无已启用的餐厅",
+    "👁 Enter as…":"👁 以…身份进入", "Approve & provision":"批准并开通",
+    "← Back to restaurants":"← 返回餐厅列表",
+    "Hierarchy & unique IDs":"层级与唯一 ID", "⚙️ Configuration snapshot":"⚙️ 配置快照",
+    "Setup complete":"已完成设置", "Contact":"联系方式", "Status":"状态",
+
+    // ---- Owner: setup wizard ----
+    "1 · Restaurant logo":"1 · 餐厅 Logo", "2 · Choose your features":"2 · 选择功能",
+    "Your logo appears on the sign-in page and in every portal.":"你的 Logo 会显示在登录页和各个端。",
+    "Display name":"显示名称",
+    "Tick the modules you want. Unticked ones are hidden from your team.":"勾选你需要的模块，未勾选的将对团队隐藏。",
+    "✅ Finish setup":"✅ 完成设置",
+    "You can revisit Settings anytime to toggle features or switch language.":"你可随时在「设置」中开关功能或切换语言。",
+    "Setup complete — welcome aboard! 🎉":"设置完成 —— 欢迎加入！🎉",
+
+    // ---- Owner: team & roles ----
+    "Your managers and staff · tap anyone to open their profile or change their role":"你的经理与员工 · 点击任意成员查看资料或调整身份",
+    "🔗 Manager join link":"🔗 经理加入链接", "👥 Total people":"👥 总人数",
+    "No managers yet — share the join link":"暂无经理 —— 分享加入链接",
+    "Invite a manager":"邀请经理", "Manager join link":"经理加入链接", "Copy link":"复制链接", "Join link copied":"加入链接已复制",
+    "Share this link with a manager. They open it, create their login, and instantly join this restaurant.":"把此链接发给经理。他们打开后创建登录账号，即可立即加入本餐厅。",
+    "Change role":"调整身份", "Save role":"保存身份",
+    "Change role":"调整身份",
+
+    // ---- Manager join page ----
+    "Join the team":"加入团队", "Invalid invite link":"邀请链接无效",
+    "Your name":"你的姓名",
+    "This invite link is invalid or the restaurant isn't active yet. Please check with the owner.":"此邀请链接无效，或餐厅尚未启用。请与店主确认。",
+    "← Back to sign in":"← 返回登录",
+    "Go to sign in":"前往登录",
   };
 
   // Templated strings (numbers / names interpolated) — exact match can't catch

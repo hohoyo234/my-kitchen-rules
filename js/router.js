@@ -15,6 +15,8 @@ window.MKR = window.MKR || {};
 
     // Public customer route (no login): #/order/<table>
     if(role==='order'){ return MKR.customer.render(root, section); }
+    // Public manager/staff join-by-link route: #/join/<kitchenId>
+    if(role==='join'){ return MKR.join.render(root, section); }
 
     const sess = MKR.auth.current();
 
@@ -71,7 +73,8 @@ window.MKR = window.MKR || {};
         </aside>
         <div class="main">
           <div id="offbar" class="offbar hidden">⚠️ Network lost · running in offline-safe mode — keep working, it will sync automatically when back online</div>
-          ${preview?`<div class="offbar" style="background:var(--blue-soft);color:var(--blue);border-color:#c4d6f3">👁 Owner preview · ${MKR.auth.roleName(viewingRole)} &nbsp;<a href="#/owner/switch" style="text-decoration:underline;font-weight:700">Back to Owner →</a></div>`:''}
+          ${sess._impersonating?`<div class="offbar" style="background:var(--blue-soft);color:var(--blue);border-color:#c4d6f3">🛡️ Super Admin preview · ${MKR.auth.roleName(viewingRole)} &nbsp;<a href="#exit" id="exitImp" style="text-decoration:underline;font-weight:700">Back to Super Admin →</a></div>`:''}
+          ${(preview && !sess._impersonating)?`<div class="offbar" style="background:var(--blue-soft);color:var(--blue);border-color:#c4d6f3">👁 Owner preview · ${MKR.auth.roleName(viewingRole)} &nbsp;<a href="#/owner/switch" style="text-decoration:underline;font-weight:700">Back to Owner →</a></div>`:''}
           <div class="topbar">
             <div><h1>${cur.label}</h1><div class="sub">${MKR.util.esc(portal.subtitle||'')}</div></div>
             <div id="netlight" class="netlight online"><span class="lamp"></span>Connected</div>
@@ -85,6 +88,8 @@ window.MKR = window.MKR || {};
       if(MKR.net.isDirty() && !confirm('You have unsaved data — log out anyway?')) return;
       MKR.auth.logout();
     };
+    const exitImp=document.getElementById('exitImp');
+    if(exitImp) exitImp.onclick=(e)=>{ e.preventDefault(); MKR.auth.exitImpersonate(); location.hash='#/superadmin/restaurants'; render(); };
     MKR.net.render();
     const view = document.getElementById('view');
     try{ await portal.view(section, view, arg, viewingRole); }
