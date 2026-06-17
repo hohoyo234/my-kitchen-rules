@@ -92,8 +92,13 @@ create or replace function public.is_super() returns boolean
   language sql stable security definer set search_path = public, pg_temp as
 $$ select exists (select 1 from public.profiles where id = auth.uid() and active and role = 'superadmin') $$;
 
-grant execute on function public.my_role(), public.my_kitchen(), public.my_staff_id(),
-                         public.is_active(), public.is_super() to anon, authenticated;
+-- Only signed-in users' queries invoke these (the anon policies never call them),
+-- so revoke the default PUBLIC/anon execute and grant to authenticated only.
+-- (Clears the "Public Can Execute SECURITY DEFINER Function" advisor warnings.)
+revoke execute on function public.my_role(), public.my_kitchen(), public.my_staff_id(),
+                           public.is_active(), public.is_super() from public, anon;
+grant  execute on function public.my_role(), public.my_kitchen(), public.my_staff_id(),
+                           public.is_active(), public.is_super() to authenticated;
 
 -- ----------------------------------------------------------------------------
 -- 2) Least-privilege table grants. RLS is the inner gate, grants are the outer
