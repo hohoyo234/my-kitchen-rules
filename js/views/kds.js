@@ -66,6 +66,7 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
           return `<div class="ticket ${cls}">
             <div class="ticket-head"><span class="t">#${o.id.slice(-4)}${o.table?' · table '+o.table:''}</span><span class="timer">${mins}′</span></div>
             <div class="ticket-body">
+              ${o.server?`<div class="faint" style="font-size:11.5px;margin-bottom:6px">🧑‍🍳 ${U.esc(o.server)}</div>`:''}
               ${o.items.map(it=>`<div class="ticket-line"><span><span class="q">${it.qty}×</span>${U.esc(it.nm)}${it.note?`<span class="note">📝 ${U.esc(it.note)}</span>`:''}</span></div>`).join('')}
               <button class="btn btn-dark btn-block mt12" data-done="${o.id}">✓ Mark served</button>
             </div>

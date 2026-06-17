@@ -164,6 +164,7 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
           items: cartSnapshot, subtotal: cartSnapshot.reduce((s,l)=>s+l.price*l.qty,0),
           total: amount, discountPct, method, table: tableNo,
           kitchenId: (MKR.auth.current()&&MKR.auth.current().kitchenId)||'k_main',
+          server: (MKR.auth.current()&&MKR.auth.current().name)||'', serverId: (MKR.auth.current()&&MKR.auth.current().id)||'',
           status:'cooking', paid:true, payStatus:'paid'
         };
         const saved = await MKR.db.put('orders', order);
@@ -268,7 +269,7 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
       <div class="li">
         <div class="ava">${o.method==='cash'?'💵':'💳'}</div>
         <div class="meta"><b>#${o.id.slice(-4)} · ${U.money(o.total)}${o.table?' · table '+o.table:''}</b>
-          <span>${U.fmtTime(o.createdAt)} · ${o.items.length} items · ${({cooking:'Cooking',done:'Done',cancelled:'Cancelled',refunded:'Refunded'})[o.status]||o.status}</span></div>
+          <span>${U.fmtTime(o.createdAt)} · ${o.items.length} items${o.server?' · by '+U.esc(o.server):''} · ${({cooking:'Cooking',done:'Done',cancelled:'Cancelled',refunded:'Refunded'})[o.status]||o.status}</span></div>
         ${o.status==='cancelled'||o.status==='refunded'?`<span class="pill danger">${o.status==='refunded'?'Refunded':'Cancelled'}</span>`:
           `<button class="btn btn-ghost btn-sm" data-refund="${o.id}">Refund</button>`}
       </div>`).join('');

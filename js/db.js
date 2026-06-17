@@ -77,10 +77,20 @@ window.MKR = window.MKR || {};
       const items=await outAll();
       for(const {key,op} of items){
         let err=null;
-        if(op.type==='upsert'){ const r=await sb().from(op.t).upsert({id:op.obj.id,data:op.obj,updated_at:new Date().toISOString()}); err=r.error; }
-        else if(op.type==='delete'){ const r=await sb().from(op.t).delete().eq('id',op.id); err=r.error; }
-        else if(op.type==='meta'){ const r=await sb().from('app_meta').upsert({key:op.k,value:op.v}); err=r.error; }
-        if(!err) await outDel(key); else break;   // stop on failure, retry next time
+        try{
+          if(op.type==='upsert'){ const r=await sb().from(op.t).upsert({id:op.obj.id,data:op.obj,updated_at:new Date().toISOString()}); err=r.error; }
+          else if(op.type==='delete'){ const r=await sb().from(op.t).delete().eq('id',op.id); err=r.error; }
+          else if(op.type==='meta'){ const r=await sb().from('app_meta').upsert({key:op.k,value:op.v}); err=r.error; }
+        }catch(e){ err=e; }
+        if(!err){ await outDel(key); continue; }
+        // Permanent schema errors (missing table / unknown column) can NEVER succeed —
+        // drop them so one poison item doesn't block the whole queue forever.
+        const code=err.code||''; const msg=String(err.message||'');
+        if(code==='PGRST205'||code==='PGRST204'||code==='42P01'||/Could not find the table|does not exist/i.test(msg)){
+          await outDel(key); continue;   // discard un-syncable item, keep draining the rest
+        }
+        // Transient error (network/RLS) — keep it queued, but keep trying the others.
+        continue;
       }
     }finally{ flushing=false; }
     if(MKR.net && MKR.net.render) MKR.net.render();
