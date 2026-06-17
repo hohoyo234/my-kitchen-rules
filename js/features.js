@@ -39,7 +39,10 @@ window.MKR = window.MKR || {};
     async load(){
       const saved = await savedModules();
       const merged = {};
-      for(const k in DEFAULTS) merged[k] = {...DEFAULTS[k], ...(saved[k]||{})};
+      // Keep on/roles from saved data, but ALWAYS take the label from DEFAULTS
+      // (the English source) so the i18n layer controls the displayed language.
+      // Older data stored hardcoded Chinese labels — ignore them.
+      for(const k in DEFAULTS) merged[k] = {...DEFAULTS[k], ...(saved[k]||{}), label:DEFAULTS[k].label};
       _cache = merged; return merged;
     },
     get(){ return _cache || DEFAULTS; },

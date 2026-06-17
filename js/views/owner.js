@@ -197,44 +197,132 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
   }
 
   // ---------- Dashboard ----------
+  // Inline SVG icon set (replaces emoji for a consistent, crisp look)
+  const IC = {
+    revenue:'<path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v6h-6"/>',
+    orders:'<path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+    avg:'<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.6 9.4a2.4 2 0 0 1 4.8 0c0 1.3-1.2 1.7-2.4 2.2s-2.4 1-2.4 2.4a2.4 2 0 0 0 4.8 0"/>',
+    labor:'<path d="M12 20v-6M6 20v-3M18 20v-9"/><path d="M3 20h18"/>',
+    bell:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
+    chart:'<path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6" rx="1"/><rect x="12" y="7" width="3" height="10" rx="1"/><rect x="17" y="13" width="3" height="4" rx="1"/>',
+    calendar:'<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
+    cash:'<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>',
+  };
+  const icon = (n,cls='')=>`<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]||''}</svg>`;
+  const reduce = ()=> window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function countUp(el, to, fmt){
+    if(!el) return; if(reduce()){ el.textContent=fmt(to); return; }
+    const dur=650, t0=performance.now();
+    (function frame(t){ const k=Math.min(1,(t-t0)/dur); const e=1-Math.pow(1-k,3);
+      el.textContent=fmt(to*e); if(k<1) requestAnimationFrame(frame); else el.textContent=fmt(to); })(t0);
+  }
+
   async function dashboard(c){
     await noShowScan();
     const m = await metrics();
-    const vClass = m.variance==null?'flat':(Math.abs(m.variance)<=20?'flat':'down');
+    const settings = await MKR.db.meta('settings') || {};
+    const orders = await MKR.db.getAll('orders');
+    const paid = orders.filter(o=>o.paid && o.status!=='cancelled' && o.status!=='refunded');
+
+    // 7-day revenue series
+    const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const today=new Date(); today.setHours(0,0,0,0);
+    const days=[]; for(let i=6;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i);
+      const iso=d.toISOString().slice(0,10);
+      const rev=paid.filter(o=>new Date(o.createdAt).toISOString().slice(0,10)===iso).reduce((s,o)=>s+o.total,0);
+      days.push({label:DOW[d.getDay()], rev}); }
+    const maxRev=Math.max(1,...days.map(d=>d.rev));
+
+    // Best sellers (last 7 days)
+    const cut=today.getTime()-6*864e5; const sell={};
+    paid.filter(o=>o.createdAt>=cut).forEach(o=>(o.items||[]).forEach(it=>{ sell[it.nm]=(sell[it.nm]||0)+(it.qty||0); }));
+    const best=Object.entries(sell).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    const maxQ=Math.max(1,...best.map(b=>b[1]));
+
+    // Labor ratio
+    const staff=(await MKR.db.getAll('users')).filter(u=>u.role==='staff'&&!u.offboarded);
+    const shifts=await MKR.db.getAll('shifts');
+    const wage=shifts.reduce((t,s)=>{ const st=staff.find(x=>x.id===s.staffId)||{baseRate:0,employment:'casual'}; return t+MKR.pay.shiftPay(st,s,MKR.seed.dayTs(s.day)).pay; },0);
+    const fc=settings.revenueForecast||1; const laborPct=wage/fc; const redline=settings.laborPctThreshold||0.28;
+    const gMax=Math.max(redline*1.6, laborPct*1.15, 0.35);
+    const overLabor=laborPct>redline;
+    const avg=m.count?m.revenue/m.count:0;
+    const vNeg=m.variance!=null && Math.abs(m.variance)>(settings.cashVarianceThreshold||20);
+
+    const tile=(href,ic,label,valHtml,delta,deltaCls)=>`<a class="card ds-tile clickable" href="${href}">
+      <div class="ds-ico">${icon(ic)}</div>
+      <div class="ds-tile-body"><span class="ds-tile-label">${label}</span><span class="ds-tile-val">${valHtml}</span><span class="ds-tile-delta ${deltaCls||''}">${delta}</span></div></a>`;
+
     c.innerHTML = `
       <div class="section-head"><div><h2>Dashboard</h2><p>Runs quietly — only pings you when something's wrong</p></div></div>
-      <div class="kpi-callout" id="kpi">
-        <div class="kpi-main">
-          <span class="kpi-label">Today's revenue</span>
-          <span class="kpi-value">${U.money(m.revenue)}</span>
-          <span class="kpi-sub">${m.count} order${m.count===1?'':'s'} today · live</span>
+
+      <div class="ds-hero card">
+        <div class="ds-hero-main">
+          <span class="ds-hero-label">${icon('revenue')} Today's revenue</span>
+          <span class="ds-hero-value" id="heroRev">${U.money(0)}</span>
+          <span class="ds-hero-sub">${m.count} order${m.count===1?'':'s'} today · live</span>
+          <div class="ds-mini-row">
+            <div class="ds-mini"><span>Cash variance</span><b style="color:${vNeg?'var(--red)':'inherit'}">${m.variance==null?'—':(m.variance>=0?'+':'')+U.money0(m.variance)}</b></div>
+            <div class="ds-mini"><span>Unread alerts</span><b style="color:${m.alerts.length?'var(--red)':'inherit'}">${m.alerts.length}</b></div>
+          </div>
         </div>
-        <div class="kpi-side">
-          <div class="kpi-mini"><span>Cash variance</span><b style="color:${vClass==='down'?'var(--red)':'inherit'}">${m.variance==null?'—':(m.variance>=0?'+':'')+U.money0(m.variance)}</b></div>
-          <div class="kpi-mini"><span>Unread alerts</span><b style="color:${m.alerts.length?'var(--red)':'inherit'}">${m.alerts.length}</b></div>
+        <div class="ds-hero-chart">
+          <div class="ds-chart-cap">Last 7 days revenue</div>
+          <div class="ds-bars">${days.map(d=>`<div class="ds-bar-wrap"><div class="ds-bar" data-h="${Math.round(d.rev/maxRev*100)}" title="${U.money0(d.rev)}"></div></div>`).join('')}</div>
+          <div class="ds-bars-x">${days.map(d=>`<span>${d.label}</span>`).join('')}</div>
         </div>
       </div>
-      <div class="grid g4" style="margin:18px 0">
-        <a class="card stat clickable" href="#/owner/report"><div class="k">📈 Today's revenue</div><div class="v">${U.money0(m.revenue)}</div><div class="delta up">Live ›</div></a>
-        <a class="card stat clickable" href="#/owner/report"><div class="k">💵 Blind-drop variance</div><div class="v">${m.variance==null?'—':(m.variance>=0?'+':'')+U.money0(m.variance)}</div><div class="delta ${vClass}">${m.variance==null?'Not reconciled':(Math.abs(m.variance)<=20?'Normal':'Over threshold')} ›</div></a>
-        <a class="card stat clickable" href="#/owner/report"><div class="k">🧾 Today's orders</div><div class="v">${m.count}<small> orders</small></div><div class="delta flat">View report ›</div></a>
-        <a class="card stat clickable" href="#/owner/alerts"><div class="k">🚨 Unread alerts</div><div class="v" style="color:${m.alerts.length?'var(--red)':'inherit'}">${m.alerts.length}</div><div class="delta flat">${m.alerts.length?'Needs attention ›':'All good ›'}</div></a>
+
+      <div class="grid g4" style="margin:16px 0">
+        ${tile('#/owner/report','orders','Today\'s orders', `<span id="kOrders">0</span>`, 'View report ›','')}
+        ${tile('#/owner/report','avg','Avg order value', `<span id="kAvg">${U.money(0)}</span>`, 'per paid order','')}
+        ${tile('#/owner/labor','labor','Labor ratio', `<span id="kLabor">0.00</span><small>%</small>`, overLabor?'Over red line ›':'Healthy ›', overLabor?'down':'up')}
+        ${tile('#/owner/alerts','bell','Unread alerts', `<span style="color:${m.alerts.length?'var(--red)':'inherit'}">${m.alerts.length}</span>`, m.alerts.length?'Needs attention ›':'All good ›','')}
       </div>
+
       <div class="grid g2" style="align-items:start">
-        <div class="card" style="padding:20px">
-          <div class="section-title">🚨 Alerts · only when it matters<a href="#/owner/alerts" class="faint" style="font-size:12px">All →</a></div>
+        <div class="card pad20">
+          <div class="section-title">${icon('chart')} Best sellers · last 7 days</div>
+          <div class="bestlist">${best.length? best.map(([nm,q])=>`
+            <div class="bestrow"><span class="bestnm">${U.esc(nm)}</span><div class="besttrack"><div class="bestfill" data-w="${Math.round(q/maxQ*100)}"></div></div><b class="bestq">${q}</b></div>`).join('')
+            : '<div class="empty" style="padding:18px"><div class="em">🍽️</div><p>No sales in the last 7 days</p></div>'}</div>
+        </div>
+        <div class="card pad20">
+          <div class="section-title">${icon('labor')} Labor cost ratio</div>
+          <div class="gauge-val" style="color:${overLabor?'var(--red)':'var(--green)'}">${U.round2(laborPct*100).toFixed(2)}<small>%</small></div>
+          <div class="gauge"><div class="gauge-fill" data-w="${Math.min(100,laborPct/gMax*100).toFixed(1)}" style="background:${overLabor?'var(--red)':'var(--accent)'}"></div><div class="gauge-line" style="left:${Math.min(100,redline/gMax*100).toFixed(1)}%"></div></div>
+          <div class="gauge-legend"><span>Rostered ${U.money0(wage)}</span><span>Red line ${U.round2(redline*100).toFixed(0)}%</span></div>
+          <div class="alert ${overLabor?'red':'green'} mt12" style="font-size:13px"><span>${overLabor?'⚠️':'✅'}</span><div>${overLabor?'Over the red line — review in Labor cost.':'Within the healthy range.'}</div></div>
+        </div>
+      </div>
+
+      <div class="grid g2 mt16" style="align-items:start">
+        <div class="card pad20">
+          <div class="section-title">${icon('bell')} Alerts · only when it matters<a href="#/owner/alerts" class="faint" style="font-size:12px">All →</a></div>
           <div id="aprev"></div>
         </div>
-        <div class="card" style="padding:20px">
-          <div class="section-title">📩 Today at a glance<a href="#/owner/report" class="faint" style="font-size:12px">Full report →</a></div>
+        <div class="card pad20">
+          <div class="section-title">${icon('calendar')} Today at a glance<a href="#/owner/report" class="faint" style="font-size:12px">Full report →</a></div>
           <div class="list">
-            <a class="li clickable" href="#/owner/report"><div class="ava">💰</div><div class="meta"><b>${U.money(m.revenue)}</b><span>Today's revenue</span></div><span class="faint">›</span></a>
-            <a class="li clickable" href="#/owner/report"><div class="ava">💵</div><div class="meta"><b>${m.variance==null?'Not reconciled':(m.variance>=0?'+':'')+U.money(m.variance)}</b><span>Cash blind-drop variance</span></div><span class="faint">›</span></a>
-            <a class="li clickable" href="#/owner/compliance"><div class="ava">📅</div><div class="meta"><b>8 tables</b><span>Tomorrow's bookings (demo)</span></div><span class="faint">›</span></a>
+            <a class="li clickable" href="#/owner/report"><div class="ds-li-ic">${icon('revenue')}</div><div class="meta"><b>${U.money(m.revenue)}</b><span>Today's revenue</span></div><span class="faint">›</span></a>
+            <a class="li clickable" href="#/owner/report"><div class="ds-li-ic">${icon('cash')}</div><div class="meta"><b>${m.variance==null?'Not reconciled':(m.variance>=0?'+':'')+U.money(m.variance)}</b><span>Cash blind-drop variance</span></div><span class="faint">›</span></a>
+            <a class="li clickable" href="#/owner/compliance"><div class="ds-li-ic">${icon('calendar')}</div><div class="meta"><b>8 tables</b><span>Tomorrow's bookings (demo)</span></div><span class="faint">›</span></a>
           </div>
         </div>
       </div>
       <div class="disclaimer mt16"><span>ℹ️</span>This system aggregates and exports data; it does not connect to the ATO or give tax advice — final tax figures are confirmed by your accountant.</div>`;
+
+    // Count-ups + animated bars
+    countUp(U.qs('#heroRev',c), m.revenue, v=>U.money(v));
+    countUp(U.qs('#kOrders',c), m.count, v=>String(Math.round(v)));
+    countUp(U.qs('#kAvg',c), avg, v=>U.money(v));
+    countUp(U.qs('#kLabor',c), laborPct*100, v=>U.round2(v).toFixed(2));
+    requestAnimationFrame(()=>{
+      U.qsa('.ds-bar',c).forEach(b=> b.style.height=b.dataset.h+'%');
+      U.qsa('.bestfill',c).forEach(b=> b.style.width=b.dataset.w+'%');
+      U.qsa('.gauge-fill',c).forEach(b=> b.style.width=b.dataset.w+'%');
+    });
+
     const ap = U.qs('#aprev',c);
     const red = m.alerts.slice(0,4);
     ap.innerHTML = red.length? red.map(a=>`<div class="alert ${a.level==='red'?'red':'amber'}" style="margin-bottom:10px"><span>${a.level==='red'?'⚠️':'🔔'}</span><div><b>${U.esc(a.title)}</b><br>${U.esc(a.desc)} · <span class="faint">${U.ago(a.ts)}</span></div></div>`).join('')
