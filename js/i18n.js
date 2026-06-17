@@ -373,6 +373,17 @@ window.MKR = window.MKR || {};
     "Visa-hours breach — must fix before publishing":"签证工时超标 —— 发布前必须修正",
     "Best-seller trend · 14 days":"热卖趋势 · 14 天", "Foot traffic by hour · 30 days":"分时客流 · 30 天",
 
+    // ---- Batch-2: phone-pairing join + manager approval ----
+    "Request to join the team":"申请加入团队",
+    "🧑‍🍳 Joining a team? Request to join by phone →":"🧑‍🍳 想加入团队？用手机号申请 →",
+    "Your name":"你的姓名", "Phone number":"电话号码", "Choose a password":"设置密码",
+    "🙋 Join requests · approval needed":"🙋 加入申请 · 待审批",
+    "Approve phone join requests, or add a new starter directly by phone":"审批手机加入申请，或直接用手机号添加新员工",
+    "✅ Request sent":"✅ 申请已提交",
+    "Reject request":"驳回申请", "Reject and remove this join request?":"驳回并删除此加入申请？",
+    "Approved — they can sign in now":"已批准 —— 对方现在可以登录", "Request rejected":"申请已驳回",
+    "Join request approved":"加入申请已批准",
+
     // ---- Analytics ----
     "Analytics":"经营分析",
     "What's making money — last 30 days of sales, sellers and patterns":"看清赚钱点 — 近 30 天的销售、热卖与规律",

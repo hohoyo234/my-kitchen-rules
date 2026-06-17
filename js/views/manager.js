@@ -492,8 +492,13 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const settings = await MKR.db.meta('settings') || {};
     const roles = settings.customRoles && settings.customRoles.length ? settings.customRoles : ['Kitchen','Front of House','Cashier','Dishwasher','Head Chef'];
     const pending = (await MKR.db.getAll('users')).filter(u=>u.role==='staff' && !u.onboarded);
+    const myKid = (MKR.auth.current()&&MKR.auth.current().kitchenId)||'k_main';
     c.innerHTML = `
-      <div class="section-head"><div><h2>One-Click Add Users</h2><p>Enter a phone number + employment type — the system creates a compliant onboarding link to send the new starter</p></div></div>
+      <div class="section-head"><div><h2>One-Click Add Users</h2><p>Approve phone join requests, or add a new starter directly by phone</p></div></div>
+      <div class="card" id="jreqCard" style="padding:8px 18px;margin-bottom:16px;display:none">
+        <div class="section-title" style="padding-top:12px">🙋 Join requests · approval needed</div>
+        <div class="list" id="jreqList"></div>
+      </div>
       <div class="grid g2" style="align-items:start">
         <div class="card" style="padding:22px">
           <div class="field"><label>New starter's phone</label><input class="input" id="hphone" placeholder="04XX XXX XXX" inputmode="tel"></div>
@@ -523,6 +528,30 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       });
     }
     drawPending(pending);
+
+    // ----- Phone join requests (pending manager approval) -----
+    async function drawRequests(){
+      const reqs = (await MKR.db.getAll('users')).filter(u=>u.status==='pending' && (u.kitchenId||'k_main')===myKid && u.role!=='owner');
+      const card=U.qs('#jreqCard',c), el=U.qs('#jreqList',c); if(!card||!el) return;
+      card.style.display = reqs.length? '' : 'none';
+      if(!reqs.length){ el.innerHTML=''; return; }
+      el.innerHTML = reqs.map(u=>`<div class="li"><div class="ava">${U.initials(u.name)}</div>
+        <div class="meta"><b>${U.esc(u.name)} <span class="pill warn">Pending</span></b><span>📱 ${U.esc(u.phone||u.username||'—')} · wants to join as ${u.role==='manager'?'Manager':'Staff'} · ${U.ago(u.requestedAt||u.createdAt||Date.now())}</span></div>
+        <div class="row gap6"><button class="btn btn-green btn-sm" data-ap="${u.id}">Approve</button><button class="btn btn-ghost btn-sm" data-rj="${u.id}">Reject</button></div></div>`).join('');
+      U.qsa('[data-ap]',el).forEach(b=>b.onclick=async()=>{
+        const u=reqs.find(x=>x.id===b.dataset.ap);
+        await MKR.db.put('users',{id:b.dataset.ap, status:'active'});
+        await MKR.audit.log({action:'staff.hire', desc:`Approved join request · ${u?u.name:b.dataset.ap}`});
+        await MKR.db.put('alerts',{type:'join', level:'amber', title:'Join request approved', desc:`${u?u.name:'A new member'} can now sign in`, read:false, ts:Date.now()});
+        U.toast('Approved — they can sign in now','green'); drawRequests();
+      });
+      U.qsa('[data-rj]',el).forEach(b=>b.onclick=async()=>{
+        if(!(await U.confirm('Reject request','Reject and remove this join request?',{ok:'Reject',danger:true}))) return;
+        await MKR.db.remove('users', b.dataset.rj); U.toast('Request rejected','amber'); drawRequests();
+      });
+    }
+    drawRequests();
+    MKR.db.on('users', drawRequests);
 
     U.qs('#hbtn',c).onclick = async ()=>{
       const phone = U.qs('#hphone',c).value.trim().replace(/\s/g,'');

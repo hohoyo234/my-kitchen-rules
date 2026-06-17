@@ -8,6 +8,8 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     async render(root){
       // Dynamic branding: show the active tenant's uploaded logo if one exists.
       let brand=null; try{ brand = await MKR.db.meta('brand'); }catch(e){}
+      // Default venue for the "request to join" link (staff phone-pairing).
+      let joinKit=null; try{ const ks=await MKR.db.getAll('kitchens'); joinKit=ks.find(k=>k.status==='active'&&k.primary)||ks.find(k=>k.status==='active')||null; }catch(e){}
       const logo = brand && brand.avatar
         ? `<div class="login-logo" style="overflow:hidden;padding:0"><img src="${brand.avatar}" alt="logo" style="width:100%;height:100%;object-fit:cover"></div>`
         : `<div class="login-logo">M</div>`;
@@ -50,6 +52,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
               🧑‍🍳 Staff <code>amy/kevin/leo</code> / <code>amy3333…</code><br>
               <span class="faint">Each account is separate and isolated by role; access is revoked instantly on offboarding.</span>
             </div>
+            ${joinKit?`<div style="text-align:center;margin-top:14px;font-size:13px"><a href="#/join/${joinKit.id}" class="faint" style="font-weight:600">🧑‍🍳 Joining a team? Request to join by phone →</a></div>`:''}
           </div>
 
           <div id="applyPane" class="hidden"></div>
@@ -209,17 +212,17 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       root.innerHTML = `
       <div class="login-wrap"><div class="card login-card">
         <div class="row center gap8"><div class="login-logo">${kitchen&&kitchen.logo?`<img src="${kitchen.logo}" style="width:100%;height:100%;object-fit:cover;border-radius:inherit">`:'M'}</div>
-          <div><b style="font-size:18px">${valid?U.esc(kitchen.name):'My Kitchen Rules'}</b><div class="faint" style="font-size:12.5px">${valid?'Join the team':'Invalid invite link'}</div></div></div>
+          <div><b style="font-size:18px">${valid?U.esc(kitchen.name):'My Kitchen Rules'}</b><div class="faint" style="font-size:12.5px">${valid?'Request to join the team':'Invalid invite link'}</div></div></div>
         ${valid?`
-          <div class="disclaimer mt16"><span>📋</span>You've been invited to join <b>${U.esc(kitchen.name)}</b> as a manager. Create your login below — you'll be added to the team right away.</div>
+          <div class="disclaimer mt16"><span>🙋</span>Request to join <b>${U.esc(kitchen.name)}</b> with your phone number. A manager reviews and approves you — then sign in with your <b>phone + password</b>.</div>
           <div class="field"><label>Your name</label><input class="input" id="j_name" placeholder="e.g. Sam Lee"></div>
           <div class="row">
-            <div class="field grow"><label>Choose a username</label><input class="input" id="j_user" autocomplete="off" placeholder="e.g. samlee"></div>
+            <div class="field grow"><label>Phone number</label><input class="input" id="j_phone" inputmode="tel" autocomplete="tel" placeholder="04XX XXX XXX"></div>
             <div class="field grow"><label>Choose a password</label><input class="input" id="j_pass" type="password" autocomplete="new-password" placeholder="min 6 characters"></div>
           </div>
-          <div class="field"><label>Role</label><select class="input" id="j_role"><option value="manager">📋 Manager</option><option value="staff">🧑‍🍳 Staff</option></select></div>
+          <div class="field"><label>Role</label><select class="input" id="j_role"><option value="staff">🧑‍🍳 Staff</option><option value="manager">📋 Manager</option></select></div>
           <div id="jerr" class="alert red hidden" style="margin-bottom:12px"></div>
-          <button class="btn btn-accent btn-block" id="jbtn">Join ${U.esc(kitchen.name)}</button>
+          <button class="btn btn-accent btn-block" id="jbtn">Request to join ${U.esc(kitchen.name)}</button>
         ` : `
           <div class="alert red mt16"><span>⚠️</span><div>This invite link is invalid or the restaurant isn't active yet. Please check with the owner.</div></div>
           <a class="btn btn-ghost btn-block mt12" href="#/login">← Back to sign in</a>
@@ -231,20 +234,22 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       U.qs('#jbtn',root).onclick=async()=>{
         err.classList.add('hidden');
         const name=U.qs('#j_name',root).value.trim();
-        const username=U.qs('#j_user',root).value.trim().toLowerCase().replace(/\s+/g,'');
+        const phone=U.qs('#j_phone',root).value.trim().replace(/\s/g,'');
         const pass=U.qs('#j_pass',root).value;
         const role=U.qs('#j_role',root).value;
         if(!name) return showErr('Please enter your name');
-        if(username.length<3) return showErr('Username must be at least 3 characters');
+        if(phone.replace(/\D/g,'').length<6) return showErr('Please enter a valid phone number');
         if(pass.length<6) return showErr('Password must be at least 6 characters');
-        const existing=(await MKR.db.getAll('users')).find(u=>(u.username||'').toLowerCase()===username);
-        if(existing) return showErr('That username is already taken — pick another');
+        const existing=(await MKR.db.getAll('users')).find(u=>(u.username||'')===phone || (u.phone||'')===phone);
+        if(existing) return showErr('That phone number is already registered or pending approval');
         const id='u_'+Math.random().toString(36).slice(2,10);
-        await MKR.db.put('users',{ id, role, name, username, pw:pass, status:'active', kitchenId,
-          emoji: role==='manager'?'📋':'🧑‍🍳', onboarded: role==='manager', position: role==='manager'?'Manager':'', createdAt:Date.now() });
-        await MKR.db.put('alerts',{type:'join', level:'amber', title:'New team member joined', desc:`${name} joined ${kitchen.name} as ${role}`, read:false, ts:Date.now()});
-        const m=U.modal('✅ Welcome to '+U.esc(kitchen.name), `
-          <div class="alert green"><span>🎉</span><div>You've joined <b>${U.esc(kitchen.name)}</b> as ${role==='manager'?'a manager':'staff'}. Sign in with the username and password you just chose.</div></div>`,
+        // Phone-pairing request: created as PENDING — a manager must approve before login works.
+        await MKR.db.put('users',{ id, role, name, username:phone, phone, pw:pass, status:'pending', kitchenId,
+          emoji: role==='manager'?'📋':'🧑‍🍳', onboarded:false, position: role==='manager'?'Manager':'', joinRequest:true, requestedAt:Date.now() });
+        await MKR.db.put('alerts',{type:'join', level:'amber', title:'Join request — approval needed', desc:`${name} (${phone}) wants to join ${kitchen.name} as ${role}`, read:false, ts:Date.now()});
+        try{ if(MKR.notify&&MKR.notify.push) MKR.notify.push({role:'manager'}, '🙋 Join request', `${name} wants to join as ${role}`, 'join'); }catch(e){}
+        U.modal('✅ Request sent', `
+          <div class="alert green"><span>🎉</span><div>Thanks ${U.esc(name)} — your request to join <b>${U.esc(kitchen.name)}</b> is now <b>pending a manager's approval</b>. Once approved, sign in with your <b>phone number</b> and the password you chose.</div></div>`,
           {actions:[{label:'Go to sign in', class:'btn-dark', onClick:(cl)=>{ cl(); location.hash='#/login'; MKR.router.render(); }}]});
       };
     }
