@@ -541,6 +541,12 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       U.qsa('[data-ap]',el).forEach(b=>b.onclick=async()=>{
         const u=reqs.find(x=>x.id===b.dataset.ap);
         await MKR.db.put('users',{id:b.dataset.ap, status:'active'});
+        // Grant the role server-side: create the profiles row tied to their Auth
+        // account. RLS lets a manager create staff; manager-role joins need an owner.
+        if(u && u.joinUid && MKR.supa.client){
+          const {error}=await MKR.supa.client.from('profiles').upsert({id:u.joinUid, username:u.username, name:u.name, role:u.role||'staff', staff_id:u.id, emoji:u.emoji, active:true, kitchen_id:u.kitchenId});
+          if(error){ U.toast('Approved, but role grant failed: '+error.message,'amber'); }
+        }
         await MKR.audit.log({action:'staff.hire', desc:`Approved join request · ${u?u.name:b.dataset.ap}`});
         await MKR.db.put('alerts',{type:'join', level:'amber', title:'Join request approved', desc:`${u?u.name:'A new member'} can now sign in`, read:false, ts:Date.now()});
         U.toast('Approved — they can sign in now','green'); drawRequests();

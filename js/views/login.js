@@ -2,7 +2,8 @@
 window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
 (function(){
   const U = MKR.util;
-  const QUICK = {owner:{u:'boss',p:'boss1111'}, manager:{u:'mgr',p:'mgr2222'}, staff:{u:'amy',p:'amy3333'}};
+  // Demo usernames only — passwords live in Supabase Auth (never in code).
+  const QUICK = {owner:{u:'boss'}, manager:{u:'mgr'}, staff:{u:'amy'}};
 
   MKR.portals.login = {
     async render(root){
@@ -35,7 +36,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
             </div>
 
             <div class="field"><label>Username or ID</label><input class="input" id="lu" value="boss" autocomplete="username"></div>
-            <div class="field"><label>Password</label><input class="input" id="lp" type="password" value="boss1111" autocomplete="current-password"></div>
+            <div class="field"><label>Password</label><input class="input" id="lp" type="password" autocomplete="current-password"></div>
             <div id="lerr" class="alert red hidden" style="margin-bottom:12px"></div>
             <button class="btn btn-dark btn-block" id="lbtn">Sign in</button>
 
@@ -46,11 +47,9 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
             </button>
 
             <div class="seed-hint">
-              <b>Demo accounts (tap a role to fill):</b><br>
-              👑 Owner <code>boss</code> / <code>boss1111</code><br>
-              📋 Manager <code>mgr</code> / <code>mgr2222</code><br>
-              🧑‍🍳 Staff <code>amy/kevin/leo</code> / <code>amy3333…</code><br>
-              <span class="faint">Each account is separate and isolated by role; access is revoked instantly on offboarding.</span>
+              <b>Demo usernames (tap a role to fill, then enter the password):</b><br>
+              👑 Owner <code>boss</code> · 📋 Manager <code>mgr</code> · 🧑‍🍳 Staff <code>amy / kevin / leo</code><br>
+              <span class="faint">Passwords are set in Supabase Auth — they are never stored in this app. Each account is isolated by role and revoked instantly on offboarding.</span>
             </div>
             ${joinKit?`<div style="text-align:center;margin-top:14px;font-size:13px"><a href="#/join/${joinKit.id}" class="faint" style="font-weight:600">🧑‍🍳 Joining a team? Request to join by phone →</a></div>`:''}
           </div>
@@ -91,7 +90,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       const pick=U.qs('#rolePick',root), lu=U.qs('#lu',root), lp=U.qs('#lp',root), err=U.qs('#lerr',root), btn=U.qs('#lbtn',root);
       U.qsa('button[data-r]',pick).forEach(b=> b.onclick=()=>{
         U.qsa('button[data-r]',pick).forEach(x=>x.classList.remove('sel')); b.classList.add('sel');
-        const role=b.dataset.r; lu.value=QUICK[role].u; lp.value=QUICK[role].p; err.classList.add('hidden');
+        const role=b.dataset.r; lu.value=QUICK[role].u; lp.value=''; lp.focus(); err.classList.add('hidden');
       });
       function showErr(msg){ err.textContent='⚠️ '+msg; err.classList.remove('hidden'); }
       async function doLogin(){
@@ -180,9 +179,11 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         application:{ address:addr, website:v('a_web'), phone, email, hours:{open:v('a_open'),close:v('a_close')}, name, username, submittedAt:Date.now() },
         createdAt:Date.now()
       });
-      // Local owner account (pending) — lets them sign in once approved.
+      // Owner account record (pending). The login credential is the Supabase Auth
+      // account created above — NO password is stored here. The Super Admin grants
+      // the owner role (creates the profiles row) on approval; see SECURITY.md.
       await MKR.db.put('users', {
-        id:ownerId, role:'owner', name:name, username, email, pw:pass, status:'pending',
+        id:ownerId, role:'owner', name:name, username, email, ownerUid, status:'pending',
         kitchenId, emoji:'👑', onboarded:false, createdAt:Date.now()
       });
 
@@ -243,8 +244,19 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         const existing=(await MKR.db.getAll('users')).find(u=>(u.username||'')===phone || (u.phone||'')===phone);
         if(existing) return showErr('That phone number is already registered or pending approval');
         const id='u_'+Math.random().toString(36).slice(2,10);
+        // Create the real login account now (Supabase Auth). No password is stored
+        // in the app. A manager grants the role (creates the profiles row) on approval.
+        let joinUid=null;
+        if(MKR.supa.signupClient){
+          try{
+            const {data,error}=await MKR.supa.signupClient.auth.signUp({email:MKR.supa.emailFor(phone), password:pass});
+            if(data&&data.user) joinUid=data.user.id;
+            await MKR.supa.signupClient.auth.signOut().catch(()=>{});
+            if(!joinUid && error && /regist|exist/i.test(error.message)) return showErr('That phone number is already registered or pending approval');
+          }catch(e){}
+        }
         // Phone-pairing request: created as PENDING — a manager must approve before login works.
-        await MKR.db.put('users',{ id, role, name, username:phone, phone, pw:pass, status:'pending', kitchenId,
+        await MKR.db.put('users',{ id, role, name, username:phone, phone, joinUid, status:'pending', kitchenId,
           emoji: role==='manager'?'📋':'🧑‍🍳', onboarded:false, position: role==='manager'?'Manager':'', joinRequest:true, requestedAt:Date.now() });
         await MKR.db.put('alerts',{type:'join', level:'amber', title:'Join request — approval needed', desc:`${name} (${phone}) wants to join ${kitchen.name} as ${role}`, read:false, ts:Date.now()});
         try{ if(MKR.notify&&MKR.notify.push) MKR.notify.push({role:'manager'}, '🙋 Join request', `${name} wants to join as ${role}`, 'join'); }catch(e){}
