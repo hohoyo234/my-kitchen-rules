@@ -26,41 +26,52 @@ window.MKR = window.MKR || {};
     _saveLocal(p){ try{ localStorage.setItem(LS, JSON.stringify(p)); }catch(e){} this._profile=p; return p; },
     _clearLocal(){ try{ localStorage.removeItem(LS); }catch(e){} },
 
+    // Was this account auto-created by an old Google flow (not a real invite)?
+    async _isAutoGoogle(u){
+      if(!u) return false;
+      if(u.via==='google') return true;
+      try{ const k=u.kitchenId?await MKR.db.get('kitchens',u.kitchenId):null; if(k&&k.via==='google') return true; }catch(e){}
+      return false;
+    },
+
     // ---- Supabase profile (used by the cloud fallback + Google) ----
+    //  Google / external sign-in NEVER creates an account. The email must already
+    //  belong to an invited user (applied owner, joined manager, hired staff) or be
+    //  the Super Admin — otherwise it's rejected with an "ask to be invited" notice.
     async _loadProfile(authUser){
       if(!authUser) return null;
+      const email=(authUser.email||'').toLowerCase();
       // The designated Super Admin email is always the super admin (e.g. via Google).
-      if((authUser.email||'').toLowerCase()===SUPER_EMAIL){
+      if(email===SUPER_EMAIL){
         return this._saveLocal({ id:'u_super', uid:authUser.id, name:'Super Admin', role:'superadmin', emoji:'🛡️', email:SUPER_EMAIL });
       }
+      // External (Google) email → invite-only. Match an existing, non-pending user.
+      if(email && !email.endsWith('@mkr.app')){
+        let u=null; try{ u=(await MKR.db.getAll('users')).find(x=>(x.email||'').toLowerCase()===email && !x.offboarded && x.status!=='pending'); }catch(e){}
+        if(u && !(await this._isAutoGoogle(u))){
+          return this._saveLocal({ id:u.id, uid:authUser.id, name:u.name, role:u.role, emoji:u.emoji||EMO[u.role]||'', username:u.username, kitchenId:u.kitchenId||'k_main' });
+        }
+        // Not invited → refuse and sign back out.
+        try{ sessionStorage.setItem('mkr.authmsg','no-invite'); }catch(e){}
+        try{ await MKR.supa.client.auth.signOut(); }catch(e){}
+        this._profile=null; this._clearLocal(); return null;
+      }
+      // Username (@mkr.app) cloud accounts → profiles row.
       const {data} = await MKR.supa.client.from('profiles').select('*').eq('id', authUser.id).limit(1);
       let p = data && data[0];
-      if(!p && authUser.email && !authUser.email.endsWith('@mkr.app')){
-        p = await this._provisionOAuthOwner(authUser);
-      }
       if(!p || p.active===false){ await MKR.supa.client.auth.signOut(); this._profile=null; return null; }
       this._profile = { id: p.staff_id||p.id, uid: authUser.id, name: p.name, role: p.role, emoji: p.emoji||'', username: p.username, kitchenId: p.kitchen_id||'k_main' };
       return this._profile;
     },
 
-    // New Google user → owner of a brand-new (pending) kitchen.
-    async _provisionOAuthOwner(authUser){
-      const meta = authUser.user_metadata||{};
-      const name = meta.full_name || meta.name || (authUser.email||'').split('@')[0] || 'Owner';
-      const staffId = 'u_'+authUser.id.slice(0,8);
-      const kitchenId = 'k_'+authUser.id.slice(0,8);
-      const profile = { id:authUser.id, username:(authUser.email||'').split('@')[0], name, role:'owner', staff_id:staffId, emoji:'👑', active:true, kitchen_id:kitchenId };
-      try{
-        await MKR.supa.client.from('profiles').upsert(profile);
-        await MKR.db.put('users', {id:staffId, role:'owner', name, username:profile.username, email:authUser.email, emoji:'👑', kitchenId, status:'active', onboarded:true, createdAt:Date.now()});
-        await MKR.db.put('kitchens', {id:kitchenId, name:name+"'s Kitchen", location:'', status:'pending', ownerId:staffId, setupComplete:false, createdAt:Date.now(), via:'google'});
-      }catch(e){ /* RLS may block writes; still allow local owner session */ }
-      return profile;
-    },
-
     // ---- Restore on startup ----
     async restore(){
-      try{ const raw=localStorage.getItem(LS); if(raw){ this._profile=JSON.parse(raw); return this._profile; } }catch(e){}
+      try{ const raw=localStorage.getItem(LS); if(raw){ const p=JSON.parse(raw);
+        if(p.role==='superadmin'){ this._profile=p; return p; }
+        // Drop leftover sessions from the old Google auto-provision so they can't get stuck.
+        try{ const u=await MKR.db.get('users', p.id); if(u && (u.offboarded || await this._isAutoGoogle(u))){ this._clearLocal(); } else { this._profile=p; return p; } }
+        catch(e){ this._profile=p; return p; }
+      } }catch(e){}
       if(!MKR.supa.client) return null;
       try{ const {data}=await MKR.supa.client.auth.getSession();
         if(data.session) return await this._loadProfile(data.session.user);

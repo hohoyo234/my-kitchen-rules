@@ -59,6 +59,11 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
 
       if(MKR.i18n) MKR.i18n.bindSwitchers(root);
 
+      // If a Google sign-in was rejected (account not invited), explain why.
+      try{ if(sessionStorage.getItem('mkr.authmsg')==='no-invite'){ sessionStorage.removeItem('mkr.authmsg');
+        const e=U.qs('#lerr',root); if(e){ e.textContent='⚠️ This Google account isn\'t registered yet. You must be invited — ask an owner or manager for a join link, or use “Apply for a new restaurant system” below.'; e.classList.remove('hidden'); }
+      } }catch(e){}
+
       // Approved restaurants' logos sync onto the login page.
       try{
         const kitch = (await MKR.db.getAll('kitchens')).filter(k=>k.status==='active' && k.logo);
