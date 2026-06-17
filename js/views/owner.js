@@ -66,7 +66,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       if(section==='audit') return audit(c);
       if(section==='labor') return labor(c);
       if(section==='team') return team(c,arg);
-      if(section==='performance') return performance(c);
+      if(section==='performance') return performanceView(c);
       if(section==='membership') return membership(c);
       if(section==='branches') return branches(c);
       if(section==='compliance') return compliance(c);
@@ -447,7 +447,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
   }
 
   // ---------- Staff performance points ----------
-  async function performance(c){
+  async function performanceView(c){
     const settings = await MKR.db.meta('settings') || {};
     const W = Object.assign({perOrder:2, perOnTime:5, perTask:3, errorPenalty:8}, settings.perfWeights||{});
     const kid = (MKR.auth.current()&&MKR.auth.current().kitchenId)||'k_main';
@@ -496,7 +496,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       U.modal('Points settings', wrap, {actions:[{label:'Save', class:'btn-dark', onClick:async(cl)=>{
         const s=await MKR.db.meta('settings')||{};
         s.perfWeights={perOrder:+U.qs('#w_o',wrap).value||0, perOnTime:+U.qs('#w_t',wrap).value||0, perTask:+U.qs('#w_k',wrap).value||0, errorPenalty:+U.qs('#w_e',wrap).value||0};
-        await MKR.db.meta('settings',s); cl(); U.toast('Points settings saved','green'); performance(c);
+        await MKR.db.meta('settings',s); cl(); U.toast('Points settings saved','green'); performanceView(c);
       }}]});
     }
     function rewardModal(su){ if(!su) return;
@@ -509,7 +509,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         const u=await MKR.db.get('users',su.id)||{}; const rewards=(u.rewards||[]).concat([{ts:Date.now(),note,points:pts,by:(MKR.auth.current()||{}).name}]);
         await MKR.db.put('users',{id:su.id, rewards});
         await MKR.audit.log({action:'reward', desc:`Rewarded ${su.name}: ${note}${pts?` (+${pts} pts)`:''}`});
-        cl(); U.toast('Reward recorded 🎁','green'); performance(c);
+        cl(); U.toast('Reward recorded 🎁','green'); performanceView(c);
       }}]});
     }
   }

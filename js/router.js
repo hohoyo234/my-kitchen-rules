@@ -63,6 +63,12 @@ window.MKR = window.MKR || {};
 
     const cur = portal.nav.find(n=>n.id===section) || visNav[0] || portal.nav[0];
 
+    // The sidebar is its own scroll container and the shell is rebuilt on every
+    // navigation — remember how far it was scrolled so it doesn't jump back to
+    // the top each time you switch tabs.
+    const prevSidebar = root.querySelector('.sidebar');
+    const savedSideScroll = prevSidebar ? prevSidebar.scrollTop : 0;
+
     root.innerHTML = `
       <div class="shell">
         <aside class="sidebar">
@@ -85,6 +91,9 @@ window.MKR = window.MKR || {};
         </div>
         <nav class="mobile-nav">${mobileNav}</nav>
       </div>`;
+
+    const newSidebar = root.querySelector('.sidebar');
+    if(newSidebar && savedSideScroll) newSidebar.scrollTop = savedSideScroll;
 
     document.getElementById('logoutBtn').onclick = ()=>{
       if(MKR.net.isDirty() && !confirm('You have unsaved data — log out anyway?')) return;
