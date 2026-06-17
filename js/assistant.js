@@ -13,7 +13,7 @@
 */
 window.MKR = window.MKR || {};
 (function(){
-  const U = ()=>MKR.util;
+  const U = MKR.util;
   const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   let mounted=false, openState=false, btn=null, panel=null, log=null, started=false;
 
@@ -249,5 +249,26 @@ window.MKR = window.MKR || {};
     if(hide) close();
   }
 
-  MKR.assistant = { mount, ask, answer, llm:null };
+  // Free-form questions route here when nothing in the knowledge base matches.
+  // Calls the Supabase Edge Function `ai-assistant` (which holds the Claude API
+  // key server-side). Returns null on any failure → answer() shows its fallback.
+  async function llm(question, ctx){
+    try{
+      if(!MKR.supa || !MKR.supa.client || !MKR.supa.URL) return null;
+      let token=''; try{ const {data}=await MKR.supa.client.auth.getSession(); token=(data&&data.session&&data.session.access_token)||''; }catch(e){}
+      const lang = (MKR.i18n && MKR.i18n.lang) || 'en';
+      const res = await fetch(`${MKR.supa.URL}/functions/v1/ai-assistant`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'apikey':MKR.supa.ANON, ...(token?{Authorization:'Bearer '+token}:{}) },
+        body: JSON.stringify({ question, role:(ctx&&ctx.role)||null, lang })
+      });
+      if(!res.ok) return null;
+      const out = await res.json().catch(()=>null);
+      if(!out || !out.text) return null;
+      const html = U.esc(out.text).replace(/\n/g,'<br>');
+      return html + '<div class="faint" style="font-size:11px;margin-top:6px">🤖 AI</div>';
+    }catch(e){ return null; }
+  }
+
+  MKR.assistant = { mount, ask, answer, llm };
 })();
