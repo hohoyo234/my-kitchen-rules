@@ -561,6 +561,22 @@ window.MKR = window.MKR || {};
     "Switching a branch changes which venue's team, menu and settings you manage. Your current branch is highlighted and its logo/name shows on the sign-in page.":"切换分店会改变你所管理门店的团队、菜单与设置。当前分店会高亮，其 Logo/名称会显示在登录页。",
     "Adds a new venue you own. Switch to it to set up its team, menu and features.":"添加一个你拥有的新门店。切换到它即可设置其团队、菜单与功能。",
     "Branch added — switch to it to set it up":"分店已添加 —— 切换过去即可设置",
+
+    // ---- Owner: Staff performance points (Batch 3) ----
+    "Performance":"绩效", "Perform":"绩效",
+    "Staff performance":"员工绩效",
+    "Auto points from orders served, on-time clock-ins and tasks — minus refunds/cancels. Reward your top performers.":"根据出餐数、准时打卡和完成任务自动累积积分 —— 退款/取消会扣分。奖励你的优秀员工。",
+    "⚙️ Points settings":"⚙️ 积分设置", "Points settings":"积分设置",
+    "Points are an internal incentive metric over the last 30 days — not a formal performance review.":"积分是过去 30 天的内部激励指标 —— 并非正式绩效考核。",
+    "No staff yet":"暂无员工",
+    "Points per order served":"每出一单积分", "Points per on-time clock-in":"每次准时打卡积分",
+    "Points per task done":"每完成一项任务积分", "Penalty per refund / cancel":"每次退款/取消扣分",
+    "Points settings saved":"积分设置已保存",
+    "🎁 Reward":"🎁 奖励", "Reward":"奖励", "Give reward":"发放奖励",
+    "Reward / recognition":"奖励 / 表彰",
+    "e.g. $50 bonus · Employee of the month":"例如：$50 奖金 · 月度最佳员工",
+    "Enter a reward":"请填写奖励内容", "Reward recorded 🎁":"奖励已记录 🎁",
+    "rewarded":"已奖励", "Bonus points (optional)":"奖励积分（可选）",
   };
 
   // Templated strings (numbers / names interpolated) — exact match can't catch
@@ -610,6 +626,13 @@ window.MKR = window.MKR || {};
     // Customer self-order page
     [/^🪑 Table (.+) · self-order$/, "🪑 桌 $1 · 自助点单"],
     [/^Table (.+) · confirm order$/, "桌 $1 · 确认订单"],
+    // Staff performance leaderboard rows
+    [/^(\d+) orders · (\d+) on-time · (\d+) tasks · ~(\d+)m prep$/, m => `${m[1]} 单 · ${m[2]} 次准时 · ${m[3]} 项任务 · 约 ${m[4]} 分钟出餐`],
+    [/^(\d+) orders · (\d+) on-time · (\d+) tasks ·$/, m => `${m[1]} 单 · ${m[2]} 次准时 · ${m[3]} 项任务 ·`],
+    [/^(\d+) orders · (\d+) on-time · (\d+) tasks$/, m => `${m[1]} 单 · ${m[2]} 次准时 · ${m[3]} 项任务`],
+    [/^(\d+) errors$/, "$1 个失误"],
+    [/^· ~(\d+)m prep$/, "· 约 $1 分钟出餐"],
+    [/^🎁 Reward (.+)$/, m => `🎁 奖励 ${m[1]}`],
     // Owner preview banners (role name already translated inside the capture)
     [/^👁 Owner preview · (.+)$/, m => `👁 老板预览 · ${tr(m[1].trim())}`],
     [/^Owner · previewing (.+)$/, m => `老板 · 预览${tr(m[1])}`],

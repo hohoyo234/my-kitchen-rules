@@ -42,6 +42,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       {id:'audit',     label:'Audit log',    em:'🔍', short:'Audit'},
       {id:'labor',     label:'Labor cost',   em:'💰', short:'Labor'},
       {id:'team',      label:'Team',         em:'👥', short:'Team'},
+      {id:'performance',label:'Performance', em:'🏅', short:'Perform'},
       {id:'branches',  label:'Branches',     em:'🏢', short:'Branches'},
       {id:'compliance',label:'Compliance',   em:'🛡️', short:'Comply'},
       {id:'feedback',  label:'Feedback',     em:'⭐', short:'Reviews'},
@@ -64,6 +65,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       if(section==='audit') return audit(c);
       if(section==='labor') return labor(c);
       if(section==='team') return team(c,arg);
+      if(section==='performance') return performance(c);
       if(section==='branches') return branches(c);
       if(section==='compliance') return compliance(c);
       if(section==='feedback') return feedback(c);
@@ -440,6 +442,74 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       U.qsa('.bestfill',c).forEach(b=> b.style.width=b.dataset.w+'%');
       U.qsa('.gauge-fill',c).forEach(b=> b.style.width=b.dataset.w+'%');
     });
+  }
+
+  // ---------- Staff performance points ----------
+  async function performance(c){
+    const settings = await MKR.db.meta('settings') || {};
+    const W = Object.assign({perOrder:2, perOnTime:5, perTask:3, errorPenalty:8}, settings.perfWeights||{});
+    const kid = (MKR.auth.current()&&MKR.auth.current().kitchenId)||'k_main';
+    const staff = (await MKR.db.getAll('users')).filter(u=>u.role==='staff' && !u.offboarded && (u.kitchenId||'k_main')===kid);
+    const orders = await MKR.db.getAll('orders');
+    const clockins = await MKR.db.getAll('clockins');
+    const tasks = await MKR.db.getAll('tasks');
+    const cut = Date.now()-30*864e5;
+
+    const rows = staff.map(s=>{
+      const mine = orders.filter(o=>o.serverId===s.id && (o.createdAt||0)>=cut);
+      const served = mine.filter(o=>o.paid && o.status!=='cancelled' && o.status!=='refunded');
+      const errors = mine.filter(o=>o.status==='refunded'||o.status==='cancelled').length;
+      const durs = served.filter(o=>o.updatedAt&&o.createdAt).map(o=>(o.updatedAt-o.createdAt)/60000).filter(m=>m>0&&m<240);
+      const avgPrep = durs.length? durs.reduce((a,b)=>a+b,0)/durs.length : null;
+      const onTime = clockins.filter(k=>k.staffId===s.id && (k.clockTs||0)>=cut && !k.late).length;
+      const tasksDone = tasks.filter(t=>t.done && t.by===s.name).length;
+      const bonus = (s.rewards||[]).reduce((a,r)=>a+(r.points||0),0);
+      const points = Math.max(0, Math.round(served.length*W.perOrder + onTime*W.perOnTime + tasksDone*W.perTask - errors*W.errorPenalty + bonus));
+      return { s, orders:served.length, errors, avgPrep, onTime, tasks:tasksDone, bonus, points, lastReward:(s.rewards||[]).slice(-1)[0] };
+    }).sort((a,b)=>b.points-a.points);
+    const maxPts = Math.max(1,...rows.map(r=>r.points));
+
+    c.innerHTML = `
+      <div class="section-head"><div><h2>Staff performance</h2><p>Auto points from orders served, on-time clock-ins and tasks — minus refunds/cancels. Reward your top performers.</p></div>
+        <button class="btn btn-ghost btn-sm" id="ptsCfg">⚙️ Points settings</button></div>
+      <div class="card pad20"><div class="bestlist" id="lb"></div></div>
+      <div class="disclaimer mt16"><span>🏅</span>Points are an internal incentive metric over the last 30 days — not a formal performance review.</div>`;
+
+    const lb = U.qs('#lb',c);
+    lb.innerHTML = rows.length ? rows.map((r,i)=>{
+      const medal = ['🥇','🥈','🥉'][i] || `#${i+1}`;
+      return `<div class="li"><div class="ava">${r.s.emoji||U.initials(r.s.name)}</div>
+        <div class="meta"><b>${medal} ${U.esc(r.s.name)} ${r.lastReward?`<span class="pill ok">🎁 ${U.esc(r.lastReward.note||'rewarded')}</span>`:''}</b>
+          <span>${r.orders} orders · ${r.onTime} on-time · ${r.tasks} tasks${r.errors?` · <span style="color:var(--red)">${r.errors} errors</span>`:''}${r.avgPrep!=null?` · ~${r.avgPrep.toFixed(0)}m prep`:''}</span>
+          <div class="bar" style="margin-top:6px"><i style="width:${Math.round(r.points/maxPts*100)}%"></i></div></div>
+        <div class="row gap6 center"><b style="font-family:'Playfair Display',serif;font-size:18px">${r.points}</b><button class="btn btn-ghost btn-sm" data-reward="${r.s.id}">🎁 Reward</button></div></div>`;
+    }).join('') : '<div class="empty"><div class="em">🏅</div><p>No staff yet</p></div>';
+    U.qsa('[data-reward]',lb).forEach(b=>b.onclick=()=>rewardModal((rows.find(r=>r.s.id===b.dataset.reward)||{}).s));
+    U.qs('#ptsCfg',c).onclick=cfgModal;
+
+    function cfgModal(){
+      const f=(id,label,val)=>`<div class="row center" style="gap:10px;margin-bottom:8px"><div class="grow" style="font-size:14px">${label}</div><input class="input" id="${id}" type="number" min="0" value="${val}" style="width:90px;text-align:right"></div>`;
+      const wrap=U.el(`<div><div class="disclaimer" style="margin-bottom:12px"><span>⚙️</span>Set how many points each action is worth (last 30 days, all staff).</div>
+        ${f('w_o','Points per order served',W.perOrder)}${f('w_t','Points per on-time clock-in',W.perOnTime)}${f('w_k','Points per task done',W.perTask)}${f('w_e','Penalty per refund / cancel',W.errorPenalty)}</div>`);
+      U.modal('Points settings', wrap, {actions:[{label:'Save', class:'btn-dark', onClick:async(cl)=>{
+        const s=await MKR.db.meta('settings')||{};
+        s.perfWeights={perOrder:+U.qs('#w_o',wrap).value||0, perOnTime:+U.qs('#w_t',wrap).value||0, perTask:+U.qs('#w_k',wrap).value||0, errorPenalty:+U.qs('#w_e',wrap).value||0};
+        await MKR.db.meta('settings',s); cl(); U.toast('Points settings saved','green'); performance(c);
+      }}]});
+    }
+    function rewardModal(su){ if(!su) return;
+      const wrap=U.el(`<div>
+        <div class="field"><label>Reward / recognition</label><input class="input" id="r_note" placeholder="e.g. $50 bonus · Employee of the month"></div>
+        <div class="field"><label>Bonus points (optional)</label><input class="input" id="r_pts" type="number" min="0" value="0"></div></div>`);
+      U.modal('🎁 Reward '+U.esc(su.name), wrap, {actions:[{label:'Give reward', class:'btn-green', onClick:async(cl)=>{
+        const note=U.qs('#r_note',wrap).value.trim(); if(!note){ U.toast('Enter a reward','red'); return; }
+        const pts=Math.max(0,+U.qs('#r_pts',wrap).value||0);
+        const u=await MKR.db.get('users',su.id)||{}; const rewards=(u.rewards||[]).concat([{ts:Date.now(),note,points:pts,by:(MKR.auth.current()||{}).name}]);
+        await MKR.db.put('users',{id:su.id, rewards});
+        await MKR.audit.log({action:'reward', desc:`Rewarded ${su.name}: ${note}${pts?` (+${pts} pts)`:''}`});
+        cl(); U.toast('Reward recorded 🎁','green'); performance(c);
+      }}]});
+    }
   }
 
   // ---------- Daily report ----------
