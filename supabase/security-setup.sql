@@ -63,6 +63,11 @@ alter table public.profiles add column if not exists kitchen_id text;
 alter table public.profiles add column if not exists emoji      text;
 alter table public.profiles add column if not exists active     boolean not null default true;
 alter table public.profiles add column if not exists created_at timestamptz default now();
+-- An older setup may have a role check constraint WITHOUT 'superadmin', which
+-- blocks creating the super admin. Replace it with the full allowed set.
+alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles add constraint profiles_role_check
+  check (role in ('superadmin','owner','manager','staff'));
 -- Existing demo profiles had no kitchen → default them to the demo venue so they
 -- keep seeing their data. (The super admin bypasses kitchen scoping anyway.)
 update public.profiles set kitchen_id = 'k_main'
