@@ -18,16 +18,18 @@ window.MKR = window.MKR || {};
     {id:'m_ice',  cat:'Desserts', nm:'Coconut Sago',          price:6.5,  recipe:{sago:0.1}},
   ];
 
-  // Three-portal accounts (demo). `pw` enables the local-first login path.
+  // Three-portal demo accounts (PROFILE DATA ONLY — no passwords here).
+  // Credentials live in Supabase Auth; create the matching Auth users + profiles
+  // rows via the dashboard or MKR.setup.createDemoAccounts(). See SECURITY.md.
   S.USERS = [
-    {id:'u_boss', role:'owner',   name:'James Carter', username:'boss', pw:'boss1111', status:'active', emoji:'👑'},
-    {id:'u_mgr',  role:'manager', name:'Maria Lopez',  username:'mgr',  pw:'mgr2222',  status:'active', emoji:'📋'},
+    {id:'u_boss', role:'owner',   name:'James Carter', username:'boss', status:'active', emoji:'👑'},
+    {id:'u_mgr',  role:'manager', name:'Maria Lopez',  username:'mgr',  status:'active', emoji:'📋'},
     // Staff
-    {id:'u_amy',  role:'staff', name:'Amy',  username:'amy',  pw:'amy3333',  status:'active', emoji:'🧑‍🍳',
+    {id:'u_amy',  role:'staff', name:'Amy',  username:'amy',  status:'active', emoji:'🧑‍🍳',
       age:22, employment:'casual',   baseRate:28.26, visa:'student', position:'Front of House', onboarded:true},
-    {id:'u_kevin',role:'staff', name:'Kevin',username:'kevin',pw:'kevin3333',status:'active', emoji:'🧑‍🍳',
+    {id:'u_kevin',role:'staff', name:'Kevin',username:'kevin',status:'active', emoji:'🧑‍🍳',
       age:31, employment:'parttime', baseRate:25.41, visa:'none',    position:'Kitchen',        onboarded:true},
-    {id:'u_leo',  role:'staff', name:'Leo',  username:'leo',  pw:'leo3333',  status:'active', emoji:'🧑‍🍳',
+    {id:'u_leo',  role:'staff', name:'Leo',  username:'leo',  status:'active', emoji:'🧑‍🍳',
       age:19, employment:'casual',   baseRate:24.10, visa:'student', position:'Kitchen',        onboarded:false},
   ];
 

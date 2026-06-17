@@ -1,18 +1,19 @@
 /* ===== Login / session / roles =====
-   Two paths, tried in order by login():
-   1. Local-first accounts — stored in the `users` table with a demo `pw`. This
-      covers the Super Admin (hyy7010@gmail.com), registered restaurant owners,
-      managers who joined via a link, and the seeded demo accounts. Works fully
-      offline / without provisioning anything in Supabase. The session is kept in
-      localStorage('mkr.localsess').
-   2. Supabase Auth fallback — for any real cloud accounts (kept for the future
-      Google path). RLS enforces role isolation at the database layer.
+   SECURITY MODEL (production):
+   - Authentication is Supabase Auth. Passwords are hashed server-side by
+     Supabase (bcrypt) and are NEVER stored by this app. There is no password
+     constant anywhere in the code, and no plaintext-password table lookup.
+   - Authorisation comes from the SERVER: every signed-in user has a row in the
+     `profiles` table (id = auth.uid()) that holds their role / kitchen / staff_id.
+     The browser's cached copy is only a UI hint — Row Level Security re-checks
+     the user's real identity on every query, so editing localStorage to claim a
+     different role grants NOTHING (the database refuses the data).
+   See supabase/security-setup.sql and SECURITY.md.
 */
 window.MKR = window.MKR || {};
 (function(){
-  const LS = 'mkr.localsess';
+  const LS = 'mkr.localsess';                  // cached profile (UI hint only — never trusted for access)
   const SUPER_EMAIL = (MKR.supa && MKR.supa.SUPER_ADMIN_EMAIL) || 'hyy7010@gmail.com';
-  const SUPER_PW = 'admin1234';               // demo Super Admin password
   const EMO = {superadmin:'🛡️', owner:'👑', manager:'📋', staff:'🧑‍🍳'};
 
   const Auth = {
@@ -23,123 +24,82 @@ window.MKR = window.MKR || {};
     roleName(r){ return {superadmin:'Super Admin', owner:'Owner', manager:'Manager', staff:'Staff'}[r]||r; },
     isSuperAdmin(){ return this._profile && this._profile.role==='superadmin'; },
 
-    _saveLocal(p){ try{ localStorage.setItem(LS, JSON.stringify(p)); }catch(e){} this._profile=p; return p; },
-    _clearLocal(){ try{ localStorage.removeItem(LS); }catch(e){} },
+    _cache(p){ try{ localStorage.setItem(LS, JSON.stringify(p)); }catch(e){} this._profile=p; return p; },
+    _clearCache(){ try{ localStorage.removeItem(LS); }catch(e){} },
 
-    // Was this account auto-created by an old Google flow (not a real invite)?
-    async _isAutoGoogle(u){
-      if(!u) return false;
-      if(u.via==='google') return true;
-      try{ const k=u.kitchenId?await MKR.db.get('kitchens',u.kitchenId):null; if(k&&k.via==='google') return true; }catch(e){}
-      return false;
-    },
-
-    // ---- Supabase profile (used by the cloud fallback + Google) ----
-    //  Google / external sign-in NEVER creates an account. The email must already
-    //  belong to an invited user (applied owner, joined manager, hired staff) or be
-    //  the Super Admin — otherwise it's rejected with an "ask to be invited" notice.
+    // ---- Build the session profile from the SERVER-trusted profiles row ----
+    //  Returns null (and signs the user back out) when there is no active profile.
+    //  Identity / role / kitchen all come from `profiles`, never from the client.
     async _loadProfile(authUser){
-      if(!authUser) return null;
-      const email=(authUser.email||'').toLowerCase();
-      // The designated Super Admin email is always the super admin (e.g. via Google).
-      if(email===SUPER_EMAIL){
-        return this._saveLocal({ id:'u_super', uid:authUser.id, name:'Super Admin', role:'superadmin', emoji:'🛡️', email:SUPER_EMAIL });
-      }
-      // External (Google) email → invite-only. Match an existing, non-pending user.
-      if(email && !email.endsWith('@mkr.app')){
-        let u=null; try{ u=(await MKR.db.getAll('users')).find(x=>(x.email||'').toLowerCase()===email && !x.offboarded && x.status!=='pending'); }catch(e){}
-        if(u && !(await this._isAutoGoogle(u))){
-          return this._saveLocal({ id:u.id, uid:authUser.id, name:u.name, role:u.role, emoji:u.emoji||EMO[u.role]||'', username:u.username, kitchenId:u.kitchenId||'k_main' });
-        }
-        // Not invited → refuse and sign back out.
-        try{ sessionStorage.setItem('mkr.authmsg','no-invite'); }catch(e){}
-        try{ await MKR.supa.client.auth.signOut(); }catch(e){}
-        this._profile=null; this._clearLocal(); return null;
-      }
-      // Username (@mkr.app) cloud accounts → profiles row.
+      if(!authUser || !MKR.supa.client) return null;
       const {data} = await MKR.supa.client.from('profiles').select('*').eq('id', authUser.id).limit(1);
-      let p = data && data[0];
-      if(!p || p.active===false){ await MKR.supa.client.auth.signOut(); this._profile=null; return null; }
-      this._profile = { id: p.staff_id||p.id, uid: authUser.id, name: p.name, role: p.role, emoji: p.emoji||'', username: p.username, kitchenId: p.kitchen_id||'k_main' };
-      return this._profile;
+      const p = data && data[0];
+      if(!p || p.active===false){
+        // No role assigned (e.g. a Google sign-in that was never invited / approved)
+        // or a deactivated (offboarded) account → refuse and sign back out.
+        try{ if(!p) sessionStorage.setItem('mkr.authmsg','no-invite'); }catch(e){}
+        try{ await MKR.supa.client.auth.signOut(); }catch(e){}
+        this._profile=null; this._clearCache(); return null;
+      }
+      return this._cache({
+        id: p.staff_id || p.id,           // the app's business id (sess.id), e.g. u_amy
+        uid: authUser.id,                 // the auth.uid() — what RLS actually checks
+        name: p.name, role: p.role,
+        emoji: p.emoji || EMO[p.role] || '',
+        username: p.username,
+        kitchenId: p.kitchen_id || 'k_main'
+      });
     },
 
-    // ---- Restore on startup ----
+    // ---- Restore on startup: trust the Supabase session, not the cache ----
     async restore(){
-      try{ const raw=localStorage.getItem(LS); if(raw){ const p=JSON.parse(raw);
-        if(p.role==='superadmin'){ this._profile=p; return p; }
-        // Drop leftover sessions from the old Google auto-provision so they can't get stuck.
-        try{ const u=await MKR.db.get('users', p.id); if(u && (u.offboarded || await this._isAutoGoogle(u))){ this._clearLocal(); } else { this._profile=p; return p; } }
-        catch(e){ this._profile=p; return p; }
-      } }catch(e){}
-      if(!MKR.supa.client) return null;
-      try{ const {data}=await MKR.supa.client.auth.getSession();
-        if(data.session) return await this._loadProfile(data.session.user);
+      if(!MKR.supa.client){ this._clearCache(); return null; }
+      try{
+        const {data} = await MKR.supa.client.auth.getSession();
+        if(data && data.session){
+          // Show the cached profile instantly for a snappy first paint, then
+          // re-validate against the server (authoritative) in the background.
+          try{ const raw=localStorage.getItem(LS); if(raw) this._profile=JSON.parse(raw); }catch(e){}
+          return await this._loadProfile(data.session.user);
+        }
       }catch(e){}
-      return null;
+      // No valid Supabase session → not logged in. Drop any stale/tampered cache.
+      this._clearCache(); this._profile=null; return null;
     },
 
-    // ---- Local-first login ----
+    // ---- Sign in (Supabase Auth only) ----
     async login(identifier, password){
-      const id = String(identifier||'').trim();
-      const idLower = id.toLowerCase();
-
-      // 1) Super Admin
-      if(idLower===SUPER_EMAIL){
-        if(password!==SUPER_PW) return {ok:false, msg:'Wrong Super Admin password'};
-        const p = this._saveLocal({ id:'u_super', uid:'local-super', name:'Super Admin', role:'superadmin', emoji:'🛡️', email:SUPER_EMAIL });
-        MKR.audit.log({action:'login', desc:'Super Admin signed in'});
-        return {ok:true, user:p};
+      if(!MKR.supa.client) return {ok:false, msg:'Secure sign-in is unavailable (cloud not connected).'};
+      const email = MKR.supa.emailFor(identifier);
+      const {data, error} = await MKR.supa.client.auth.signInWithPassword({email, password});
+      if(error){
+        const m = /confirm/i.test(error.message||'') ? 'Please confirm your email first, then sign in.'
+                : 'Wrong username/email or password';
+        return {ok:false, msg:m};
       }
-
-      // 2) Local account (registered owners/managers/staff + seeded demo users)
-      try{
-        const users = await MKR.db.getAll('users');
-        const u = users.find(x=> x.pw && x.pw===password && ((x.username||'').toLowerCase()===idLower || (x.email||'').toLowerCase()===idLower));
-        if(u){
-          if(u.offboarded) return {ok:false, msg:'This account has been offboarded'};
-          if(u.status==='pending') return {ok:false, msg:'Your application is still pending approval'};
-          if(u.role!=='owner'){
-            // managers/staff need an active kitchen
-            const k = u.kitchenId ? await MKR.db.get('kitchens', u.kitchenId) : null;
-            if(k && k.status && k.status!=='active') return {ok:false, msg:'This restaurant is not active yet'};
-          } else {
-            const k = u.kitchenId ? await MKR.db.get('kitchens', u.kitchenId) : null;
-            if(k && k.status==='pending') return {ok:false, msg:'Your restaurant is still pending approval'};
-            if(k && k.status==='rejected') return {ok:false, msg:'Your application was not approved'};
-          }
-          const p = this._saveLocal({ id:u.id, uid:'local', name:u.name, role:u.role, emoji:u.emoji||EMO[u.role]||'', username:u.username, kitchenId:u.kitchenId||'k_main' });
-          MKR.audit.log({action:'login', desc:`${u.name} signed in (${this.roleName(u.role)})`});
-          return {ok:true, user:p};
-        }
-      }catch(e){}
-
-      // 3) Supabase Auth fallback (cloud accounts)
-      if(MKR.supa.client){
-        const email = MKR.supa.emailFor(id);
-        const {data, error} = await MKR.supa.client.auth.signInWithPassword({email, password});
-        if(!error){
-          const prof = await this._loadProfile(data.user);
-          if(prof){ MKR.audit.log({action:'login', desc:`${prof.name} signed in (${this.roleName(prof.role)})`}); return {ok:true, user:prof}; }
-          return {ok:false, msg:'This account is disabled or has no role assigned'};
-        }
-      }
-      return {ok:false, msg:'Wrong username/email or password'};
+      const prof = await this._loadProfile(data.user);
+      if(!prof) return {ok:false, msg:'This account has no role assigned yet, or has been deactivated. Ask an owner/admin to approve it.'};
+      MKR.audit.log({action:'login', desc:`${prof.name} signed in (${this.roleName(prof.role)})`});
+      return {ok:true, user:prof};
     },
 
     // ---- Super Admin impersonation (view a kitchen as owner/manager/staff) ----
+    //  The super admin's real JWT is still what talks to the database, so RLS
+    //  (is_super) keeps letting them through; this only reskins the UI.
     impersonate(role, kitchenId, name){
+      if(!this.isSuperAdmin() && !(this._realProfile && this._realProfile.role==='superadmin')) return this._profile;
       if(!this._realProfile) this._realProfile = this._profile;
       this._profile = { id:this._realProfile.id, uid:this._realProfile.uid, name: name||('Preview · '+this.roleName(role)),
         role, emoji: EMO[role]||'🛡️', kitchenId: kitchenId||'k_main', _impersonating:true };
       return this._profile;
     },
-    exitImpersonate(){ if(this._realProfile){ this._profile=this._realProfile; this._realProfile=null; this._saveLocal(this._profile); } },
+    exitImpersonate(){ if(this._realProfile){ this._profile=this._realProfile; this._realProfile=null; this._cache(this._profile); } },
 
     // ---- Owner switches the active branch (tenant) for this session ----
-    switchKitchen(kitchenId){ if(!this._profile||!kitchenId) return; this._profile.kitchenId=kitchenId; this._saveLocal(this._profile); return this._profile; },
+    //  RLS still scopes data to my_kitchen() server-side; this updates the hint.
+    switchKitchen(kitchenId){ if(!this._profile||!kitchenId) return; this._profile.kitchenId=kitchenId; this._cache(this._profile); return this._profile; },
 
-    // ---- Continue with Google (kept for the future real-auth path) ----
+    // ---- Continue with Google (invite-only: a profiles row must already exist) ----
     async loginWithGoogle(){
       if(!MKR.supa.client) return {ok:false, msg:'Cloud not connected'};
       try{
@@ -151,7 +111,7 @@ window.MKR = window.MKR || {};
     },
 
     async logout(){
-      this._clearLocal(); this._realProfile=null;
+      this._clearCache(); this._realProfile=null;
       try{ if(MKR.supa.client) await MKR.supa.client.auth.signOut(); }catch(e){}
       this._profile=null; location.hash='#/login'; location.reload();
     }

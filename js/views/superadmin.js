@@ -173,7 +173,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         <div class="li"><div class="meta"><span>Setup complete</span><b>${k.setupComplete?'Yes':'No'}</b></div></div>
       </div></div>
       <div class="disclaimer mt16"><span>🔑</span>Every user has a unique ID for signing into their customised portal. Use “Enter as…” to see this restaurant exactly as its owner / manager / staff do.</div>`;
-    const ap=U.qs('#apK',c); if(ap) ap.onclick=async()=>{ await MKR.db.put('kitchens',{id, status:'active', approvedAt:Date.now()}); const o=owners[0]; if(o) await MKR.db.put('users',{id:o.id,status:'active'}); await MKR.audit.log({action:'kitchen.approve', desc:`Approved restaurant ${k.name}`}); U.toast('Approved','green'); kitchenDetail(c,id); };
+    const ap=U.qs('#apK',c); if(ap) ap.onclick=async()=>{ await MKR.db.put('kitchens',{id, status:'active', approvedAt:Date.now()}); const o=owners[0]; if(o) await MKR.db.put('users',{id:o.id,status:'active'}); if(k.ownerUid && MKR.supa.client){ try{ await MKR.supa.client.from('profiles').upsert({id:k.ownerUid, username:k.ownerUsername, name:k.name, role:'owner', staff_id:o?o.id:('u_'+k.ownerUid.slice(0,8)), emoji:'👑', active:true, kitchen_id:id}); }catch(e){} } await MKR.audit.log({action:'kitchen.approve', desc:`Approved restaurant ${k.name}`}); U.toast('Approved','green'); kitchenDetail(c,id); };
     U.qs('#enterK',c).onclick=()=>enterAs(k);
   }
 
