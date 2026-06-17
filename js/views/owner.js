@@ -251,6 +251,16 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const avg=m.count?m.revenue/m.count:0;
     const vNeg=m.variance!=null && Math.abs(m.variance)>(settings.cashVarianceThreshold||20);
 
+    // Live: staff on shift right now + the busiest 15-minute window (from order timestamps)
+    const nowD=new Date(); const todayIdx=(nowD.getDay()+6)%7; const nowMin=nowD.getHours()*60+nowD.getMinutes();
+    const onNow=new Set(shifts.filter(s=>{ if(s.day!==todayIdx||!s.start||!s.end) return false;
+      const [sh,sm]=String(s.start).split(':').map(Number), [eh,em]=String(s.end).split(':').map(Number);
+      return nowMin>=(sh*60+sm) && nowMin<(eh*60+em); }).map(s=>s.staffId)).size;
+    const buckets={}; paid.forEach(o=>{ const d=new Date(o.createdAt); buckets[d.getHours()*4+Math.floor(d.getMinutes()/15)]=(buckets[d.getHours()*4+Math.floor(d.getMinutes()/15)]||0)+1; });
+    let peak=null,peakN=0; for(const k in buckets){ if(buckets[k]>peakN){ peakN=buckets[k]; peak=+k; } }
+    const pad2=n=>String(n).padStart(2,'0'); const fmtMin=mins=>pad2(Math.floor(mins/60)%24)+':'+pad2(mins%60);
+    const peakLabel = peak==null?'—':`${fmtMin(peak*15)}–${fmtMin(peak*15+15)}`;
+
     const tile=(href,ic,label,valHtml,delta,deltaCls)=>`<a class="card ds-tile clickable" href="${href}">
       <div class="ds-ico">${icon(ic)}</div>
       <div class="ds-tile-body"><span class="ds-tile-label">${label}</span><span class="ds-tile-val">${valHtml}</span><span class="ds-tile-delta ${deltaCls||''}">${delta}</span></div></a>`;
@@ -264,6 +274,8 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
           <span class="ds-hero-value" id="heroRev">${U.money(0)}</span>
           <span class="ds-hero-sub">${m.count} order${m.count===1?'':'s'} today · live</span>
           <div class="ds-mini-row">
+            <div class="ds-mini"><span>🟢 On shift now</span><b>${onNow}</b></div>
+            <div class="ds-mini"><span>Busiest 15-min</span><b style="font-size:15px">${peakLabel}</b></div>
             <div class="ds-mini"><span>Cash variance</span><b style="color:${vNeg?'var(--red)':'inherit'}">${m.variance==null?'—':(m.variance>=0?'+':'')+U.money0(m.variance)}</b></div>
             <div class="ds-mini"><span>Unread alerts</span><b style="color:${m.alerts.length?'var(--red)':'inherit'}">${m.alerts.length}</b></div>
           </div>
@@ -361,6 +373,18 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const cash=p30.filter(o=>o.method==='cash').length, card=ord30-cash;
     const cashPct=ord30?Math.round(cash/ord30*100):0;
 
+    // best-seller trend: top-3 dishes' daily quantity over the last 14 days
+    const dayKeys=[]; for(let i=13;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); dayKeys.push(d.toISOString().slice(0,10)); }
+    const trend = sorted.slice(0,3).map(([nm])=>{
+      const series = dayKeys.map(iso=> paid.filter(o=>new Date(o.createdAt).toISOString().slice(0,10)===iso)
+        .reduce((s,o)=>s+(o.items||[]).filter(it=>it.nm===nm).reduce((q,it)=>q+(it.qty||0),0),0));
+      return { nm, series, mx:Math.max(1,...series) };
+    });
+    // foot traffic: order count per hour of day (last 30 days), across opening hours
+    const HRS=[]; for(let h=8;h<=23;h++) HRS.push(h);
+    const hourCount = HRS.map(h=> p30.filter(o=>new Date(o.createdAt).getHours()===h).length);
+    const maxHr=Math.max(1,...hourCount);
+
     const I=(n)=> MKR.ui?MKR.ui.icon(n):'';
     const tile=(ic,label,val,sub)=>`<div class="card ds-tile"><div class="ds-ico">${I(ic)}</div><div class="ds-tile-body"><span class="ds-tile-label">${label}</span><span class="ds-tile-val">${val}</span><span class="ds-tile-delta">${sub||''}</span></div></div>`;
     const barRow=(label,val,max,fmt)=>`<div class="bestrow"><span class="bestnm">${U.esc(label)}</span><div class="besttrack"><div class="bestfill" data-w="${Math.round(val/max*100)}"></div></div><b class="bestq">${fmt(val)}</b></div>`;
@@ -392,6 +416,21 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
           <div class="section-title mt16">${I('receipt')} Payment mix</div>
           <div class="gauge"><div class="gauge-fill" data-w="${cashPct}" style="background:var(--green)"></div></div>
           <div class="gauge-legend"><span>💵 Cash ${cash} (${cashPct}%)</span><span>💳 Card ${card} (${100-cashPct}%)</span></div>
+        </div>
+      </div>
+
+      <div class="grid g2 mt16" style="align-items:start">
+        <div class="card pad20">
+          <div class="section-title">${I('trend')} Best-seller trend · 14 days</div>
+          ${trend.length? trend.map(t=>`
+            <div style="margin-top:12px"><div style="font-size:12.5px;font-weight:600;margin-bottom:4px">${U.esc(t.nm)}</div>
+            <div class="ds-bars" style="height:42px">${t.series.map(v=>`<div class="ds-bar-wrap"><div class="ds-bar" data-h="${Math.round(v/t.mx*100)}" title="${v}"></div></div>`).join('')}</div></div>`).join('')
+            : '<div class="empty" style="padding:16px"><div class="em">📈</div><p>No sales yet</p></div>'}
+        </div>
+        <div class="card pad20">
+          <div class="section-title">${I('users')} Foot traffic by hour · 30 days</div>
+          <div class="ds-bars" style="margin-top:6px;height:96px">${hourCount.map((v,i)=>`<div class="ds-bar-wrap"><div class="ds-bar" data-h="${Math.round(v/maxHr*100)}" title="${HRS[i]}:00 · ${v} orders"></div></div>`).join('')}</div>
+          <div class="ds-bars-x">${HRS.map((h,i)=>`<span>${i%3===0?h:''}</span>`).join('')}</div>
         </div>
       </div>
       <div class="disclaimer mt16"><span>📈</span>Figures cover paid orders across your venues for the last 30 days. Use them to plan menu, staffing and promotions — they don't constitute financial advice.</div>`;

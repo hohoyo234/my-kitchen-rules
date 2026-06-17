@@ -18,7 +18,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         <div class="card login-card">
           ${MKR.i18n?MKR.i18n.switcher():''}
           <div class="row center gap8">${logo}
-            <div><b style="font-size:18px">${brandName}</b><div class="faint" style="font-size:12.5px">Restaurant manager · Secure login</div></div></div>
+            <div><b class="serif" style="font-size:22px;letter-spacing:-.3px;line-height:1.1">${brandName}</b><div class="faint" style="font-size:12.5px;margin-top:2px">Restaurant manager · Secure login</div></div></div>
 
           <div class="login-tabs mt16" id="loginTabs">
             <button data-tab="signin" class="active">Sign in</button>

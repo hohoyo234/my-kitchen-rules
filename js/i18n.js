@@ -368,6 +368,11 @@ window.MKR = window.MKR || {};
     "Staff swap market":"员工换班市场", "Staff availability":"员工可用时间",
     "Table QR ordering":"桌台二维码点单", "Notifications & nudges":"通知与提醒",
 
+    // ---- Batch-1 additions: live dashboard, roster compliance, new charts ----
+    "🟢 On shift now":"🟢 当前在岗", "Busiest 15-min":"最忙 15 分钟",
+    "Visa-hours breach — must fix before publishing":"签证工时超标 —— 发布前必须修正",
+    "Best-seller trend · 14 days":"热卖趋势 · 14 天", "Foot traffic by hour · 30 days":"分时客流 · 30 天",
+
     // ---- Analytics ----
     "Analytics":"经营分析",
     "What's making money — last 30 days of sales, sellers and patterns":"看清赚钱点 — 近 30 天的销售、热卖与规律",

@@ -84,10 +84,15 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 
 /* ---------- login ---------- */
 .login-wrap{min-height:100vh;display:grid;place-items:center;padding:24px;background:
-  radial-gradient(1200px 500px at 80% -10%, rgba(201,97,46,.10), transparent 60%), var(--paper)}
-.login-card{width:100%;max-width:430px;padding:36px 32px}
-.login-logo{width:52px;height:52px;border-radius:15px;background:var(--ink);color:var(--paper);
-  display:grid;place-items:center;font-weight:900;font-size:26px;font-family:"Playfair Display",serif}
+  radial-gradient(900px 520px at 12% -8%, rgba(201,97,46,.14), transparent 55%),
+  radial-gradient(900px 520px at 90% 108%, rgba(47,143,91,.10), transparent 55%),
+  linear-gradient(180deg, #FBF8F3, var(--paper))}
+.login-card{width:100%;max-width:440px;padding:54px 30px 26px;border-radius:24px;
+  box-shadow:0 2px 6px rgba(33,30,27,.06), 0 30px 60px -28px rgba(33,30,27,.30);
+  animation:pop .4s var(--ease-out)}
+.login-logo{width:54px;height:54px;border-radius:16px;color:var(--paper);
+  background:linear-gradient(150deg,var(--accent),#9A4516);box-shadow:0 8px 20px -8px rgba(201,97,46,.6);
+  display:grid;place-items:center;font-weight:900;font-size:27px;font-family:"Playfair Display",serif}
 .role-pick{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:18px 0}
 .role-pick button{padding:14px 8px;border-radius:14px;border:1px solid var(--line);background:var(--paper-2);
   font-weight:600;font-size:13.5px;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:48px}
@@ -211,6 +216,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 .shift-chip.a{background:var(--blue-soft);color:var(--blue)}
 .shift-chip.b{background:var(--accent-soft);color:var(--accent-ink)}
 .shift-chip.x{background:var(--red-soft);color:var(--red)}
+.shift-chip.breach{background:var(--red-soft);color:var(--red);outline:2px solid var(--red)}
 .shift-chip .rm{position:absolute;right:4px;top:3px;opacity:.5;cursor:pointer}
 
 /* ---------- tasks ---------- */
@@ -353,7 +359,7 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 .lang-switch button{appearance:none;border:none;background:transparent;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:var(--ink-soft);padding:6px 14px;min-height:36px;line-height:1}
 .lang-switch button.active{background:var(--accent);color:#fff}
 .lang-switch button:not(.active):hover{background:var(--paper-2)}
-.login-card .lang-switch{position:absolute;top:18px;right:18px}
+.login-card .lang-switch{position:absolute;top:16px;right:16px}
 .login-card{position:relative}
 
 /* ===== Login tabs (Sign in / Apply) ===== */
@@ -415,8 +421,8 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 .ds-hero-label{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--ink-soft)}
 .ds-hero-value{font-family:"Playfair Display",serif;font-weight:900;font-size:46px;line-height:1.05;display:block;margin:4px 0 2px;letter-spacing:-.5px}
 .ds-hero-sub{font-size:13px;color:var(--ink-faint)}
-.ds-mini-row{display:flex;gap:10px;margin-top:16px}
-.ds-mini{flex:1;background:var(--paper-2);border:1px solid var(--line-2);border-radius:12px;padding:10px 12px}
+.ds-mini-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.ds-mini{flex:1 1 120px;background:var(--paper-2);border:1px solid var(--line-2);border-radius:12px;padding:10px 12px}
 .ds-mini span{display:block;font-size:11.5px;color:var(--ink-soft)}
 .ds-mini b{font-size:17px}
 .ds-hero-chart{display:flex;flex-direction:column;justify-content:flex-end}

@@ -144,14 +144,19 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         const today = new Date().toISOString().slice(0,10);
         const chips = ds.map(s=>{ const st=staffOf(s.staffId);
           const cls = st.visa==='student'?'b':'a';
+          const breach = st.visa==='student' && staffHours(s.staffId) > (settings.visaCapFortnight||48);
           const reminded = s.remindedAt && new Date(s.remindedAt).toISOString().slice(0,10)===today;
-          return `<span class="shift-chip ${cls}" draggable="true" data-id="${s.id}">${U.esc(st.name)} ${s.start}${reminded?' <span title="Shift reminder delivered">🔔</span>':''}<span class="rm" data-rm="${s.id}">×</span></span>`; }).join('');
+          return `<span class="shift-chip ${cls}${breach?' breach':''}" draggable="true" data-id="${s.id}"${breach?' title="Over the student-visa fortnight cap"':''}>${U.esc(st.name)} ${s.start}${breach?' ⛔':''}${reminded?' <span title="Shift reminder delivered">🔔</span>':''}<span class="rm" data-rm="${s.id}">×</span></span>`; }).join('');
         return `<div class="cell ${wknd}" data-day="${di}"><div class="d"><span>${d}</span><span>${MKR.util.fmtDate(MKR.seed.dayTs(di))}</span></div>${chips}<div class="faint" style="font-size:10px;margin-top:4px">+ shift</div></div>`;
       }).join('');
       const wage = weekWage();
       const fc = settings.revenueForecast||1;
       const pct = wage/fc;
       const over = pct > (settings.laborPctThreshold||0.28);
+      // Visa compliance: student-visa staff rostered beyond the fortnight cap
+      const visaCap = settings.visaCapFortnight||48;
+      const breaches = staff.filter(s=>s.visa==='student' && staffHours(s.id) > visaCap)
+        .map(s=>({name:s.name, h:staffHours(s.id)}));
 
       c.innerHTML = `
         <div class="section-head"><div><h2>Smart rostering</h2><p>Auto-roster from availability · drag to adjust · student-visa hours hard-capped</p></div>
@@ -167,6 +172,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         </div>
         <div class="alert info" style="margin-bottom:16px"><span>🕘</span><div>Operating hours <b>${oh.open} – ${oh.close}</b> · shift slots: ${slots.map(s=>`<b>${s.label} ${s.start}-${s.end}</b>`).join(' · ')}${Object.keys(roleShifts).length?` · fixed-hours roles: ${Object.entries(roleShifts).filter(([,v])=>v.fixed).map(([r,v])=>`<b>${U.esc(r)} ${v.start}-${v.end}</b>`).join(' · ')||'—'}`:''}</div></div>
         ${over?`<div class="alert red" style="margin-bottom:16px"><span>⚠️</span><div><b>Labor cost warning</b> · ${U.round2(pct*100).toFixed(2)}% is over the ${U.round2((settings.laborPctThreshold||0.28)*100).toFixed(2)}% red line — synced to the owner for approval.</div></div>`:''}
+        ${breaches.length?`<div class="alert red" style="margin-bottom:16px"><span>⛔</span><div><b>Visa-hours breach — must fix before publishing</b><br>${breaches.map(b=>`${U.esc(b.name)} is rostered <b>${b.h.toFixed(2)}h</b> / ${visaCap}h fortnight cap`).join('<br>')}<br>Remove shifts to comply — the system already blocks adding any shift that would breach the cap.</div></div>`:''}
         <div class="card" style="padding:16px;margin-bottom:16px">
           <div class="roster">${DAYS.map(d=>`<div class="hd">${d}</div>`).join('')}${cells}</div>
         </div>
