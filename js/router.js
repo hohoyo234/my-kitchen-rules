@@ -51,12 +51,14 @@ window.MKR = window.MKR || {};
     const nav = visNav.map(n=>{
       const active = n.id===section ? 'active':'';
       const badge = badges[n.id] ? `<span class="badge">${badges[n.id]}</span>`:'';
-      return `<a class="nav-item ${active}" href="#/${viewingRole}/${n.id}"><span class="em">${n.em}</span>${n.label}${badge}</a>`;
+      const ic = MKR.ui ? MKR.ui.navIcon(n.id) : n.em;
+      return `<a class="nav-item ${active}" href="#/${viewingRole}/${n.id}"><span class="em">${ic}</span>${n.label}${badge}</a>`;
     }).join('');
 
     const mobileNav = visNav.slice(0,5).map(n=>{
       const active = n.id===section ? 'active':'';
-      return `<a class="${active}" href="#/${viewingRole}/${n.id}"><span class="em">${n.em}</span>${n.short||n.label}</a>`;
+      const ic = MKR.ui ? MKR.ui.navIcon(n.id) : n.em;
+      return `<a class="${active}" href="#/${viewingRole}/${n.id}"><span class="em">${ic}</span>${n.short||n.label}</a>`;
     }).join('');
 
     const cur = portal.nav.find(n=>n.id===section) || visNav[0] || portal.nav[0];
