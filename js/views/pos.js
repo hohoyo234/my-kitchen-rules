@@ -163,6 +163,7 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
         const order = {
           items: cartSnapshot, subtotal: cartSnapshot.reduce((s,l)=>s+l.price*l.qty,0),
           total: amount, discountPct, method, table: tableNo,
+          kitchenId: (MKR.auth.current()&&MKR.auth.current().kitchenId)||'k_main',
           status:'cooking', paid:true, payStatus:'paid'
         };
         const saved = await MKR.db.put('orders', order);

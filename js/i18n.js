@@ -368,6 +368,17 @@ window.MKR = window.MKR || {};
     "Staff swap market":"员工换班市场", "Staff availability":"员工可用时间",
     "Table QR ordering":"桌台二维码点单", "Notifications & nudges":"通知与提醒",
 
+    // ---- Branches (multi-venue) ----
+    "Branches":"分店",
+    "All your venues at a glance — compare today's performance, then switch in to manage one":"一览你的所有门店 — 对比今日业绩，点进去管理单店",
+    "＋ Add branch":"＋ 添加分店", "Add branch":"添加分店", "Add a branch":"添加分店",
+    "Revenue today (all)":"今日营业额（全部）", "Orders today (all)":"今日订单（全部）", "People (all)":"员工（全部）",
+    "Revenue today by branch":"各分店今日营业额", "No branches yet":"暂无分店",
+    "Current":"当前", "Top today":"今日最佳", "Branch name":"分店名称",
+    "Adds a new venue you own. Switch to it to set up its team, menu and features.":"新增一家你拥有的门店。切换进去即可设置其团队、菜单与功能。",
+    "Branch added — switch to it to set it up":"分店已添加 — 切换进去进行设置",
+    "Switching a branch changes which venue's team, menu and settings you manage. The current branch is highlighted and its logo/name shows on the sign-in page.":"切换分店会改变你管理的门店（团队、菜单与设置）。当前分店会高亮，其 logo / 名称显示在登录页。",
+
     // ---- Rostering extras ----
     "· shift slots:":"· 班次时段：",
     "Award pay auto-calculated":"工资按行业标准自动计算",

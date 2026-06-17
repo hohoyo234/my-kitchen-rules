@@ -457,27 +457,47 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const sess=MKR.auth.current();
     const all=await MKR.db.getAll('kitchens');
     const users=await MKR.db.getAll('users');
+    const orders=await MKR.db.getAll('orders');
     const mine=all.filter(k=>k.ownerId===sess.id || k.id===sess.kitchenId);
+    const I=(n)=> MKR.ui?MKR.ui.icon(n):'';
     function draw(){
+      const paid=orders.filter(o=>o.paid && o.status!=='cancelled' && o.status!=='refunded');
+      const bstat=k=>{ const os=paid.filter(o=>(o.kitchenId||'k_main')===k.id && isToday(o.createdAt));
+        return { rev:os.reduce((s,o)=>s+o.total,0), ord:os.length,
+                 people:users.filter(u=>(u.kitchenId||'k_main')===k.id && u.role!=='owner' && !u.offboarded).length }; };
+      const rows=mine.map(k=>({k, ...bstat(k)}));
+      const totRev=rows.reduce((s,r)=>s+r.rev,0), totOrd=rows.reduce((s,r)=>s+r.ord,0), totPpl=rows.reduce((s,r)=>s+r.people,0);
+      const maxRev=Math.max(1,...rows.map(r=>r.rev));
+      const ranked=rows.slice().sort((a,b)=>b.rev-a.rev);
+      const top=ranked[0];
+      const tile=(ic,label,val)=>`<div class="card ds-tile"><div class="ds-ico">${I(ic)}</div><div class="ds-tile-body"><span class="ds-tile-label">${label}</span><span class="ds-tile-val">${val}</span></div></div>`;
       c.innerHTML=`
-        <div class="section-head"><div><h2>Branches</h2><p>Your venues — add a new branch and switch between them to manage each one</p></div>
+        <div class="section-head"><div><h2>Branches</h2><p>All your venues at a glance — compare today's performance, then switch in to manage one</p></div>
           <button class="btn btn-accent btn-sm" id="addBranch">＋ Add branch</button></div>
-        <div class="grid g3" style="margin-bottom:16px">
-          <div class="card stat"><div class="k">🏢 Branches</div><div class="v">${mine.length}</div></div>
-          <div class="card stat"><div class="k">📍 Current</div><div class="v" style="font-size:18px">${U.esc((mine.find(k=>k.id===sess.kitchenId)||{}).name||'—')}</div></div>
-          <div class="card stat"><div class="k">👥 People (current)</div><div class="v">${users.filter(u=>(u.kitchenId||'k_main')===sess.kitchenId && u.role!=='owner' && !u.offboarded).length}</div></div>
+        <div class="grid g4" style="margin-bottom:16px">
+          ${tile('building','Branches', rows.length)}
+          ${tile('grid','Revenue today (all)', U.money0(totRev))}
+          ${tile('receipt','Orders today (all)', totOrd)}
+          ${tile('users','People (all)', totPpl)}
+        </div>
+        <div class="card pad20" style="margin-bottom:16px">
+          <div class="section-title">${I('bars')} Revenue today by branch</div>
+          <div class="bestlist">${rows.length? ranked.map(r=>`
+            <div class="bestrow"><span class="bestnm">${U.esc(r.k.name)}</span><div class="besttrack"><div class="bestfill" data-w="${Math.round(r.rev/maxRev*100)}"></div></div><b class="bestq">${U.money0(r.rev)}</b></div>`).join('')
+            : '<div class="empty" style="padding:16px"><div class="em">🏢</div><p>No branches yet</p></div>'}</div>
         </div>
         <div class="card" style="padding:8px 18px"><div class="list" id="blist"></div></div>
-        <div class="disclaimer mt16"><span>🏢</span>Switching a branch changes which venue's team, menu and settings you manage. Your current branch is highlighted and its logo/name shows on the sign-in page.</div>`;
+        <div class="disclaimer mt16"><span>🏢</span>Switching a branch changes which venue's team, menu and settings you manage. The current branch is highlighted and its logo/name shows on the sign-in page.</div>`;
       const el=U.qs('#blist',c);
-      el.innerHTML = mine.length? mine.map(k=>{
+      el.innerHTML = rows.length? rows.map(({k,rev,ord,people})=>{
         const active=k.id===sess.kitchenId;
-        const mem=users.filter(u=>(u.kitchenId||'k_main')===k.id && u.role!=='owner' && !u.offboarded);
-        const logo=k.logo?`<img src="${k.logo}" class="kit-logo">`:'<div class="ava">🏢</div>';
+        const isTop=top && top.k.id===k.id && top.rev>0;
+        const logo=k.logo?`<img src="${k.logo}" class="kit-logo">`:`<div class="ds-li-ic">${I('building')}</div>`;
         return `<div class="li">${logo}
-          <div class="meta"><b>${U.esc(k.name)} ${active?'<span class="pill ok">Current</span>':''} ${k.primary?'<span class="pill ghost">Primary</span>':''}</b><span>${U.esc(k.location||'—')} · ${mem.length} people · ID ${U.esc(k.id)}</span></div>
+          <div class="meta"><b>${U.esc(k.name)} ${active?'<span class="pill ok">Current</span>':''} ${k.primary?'<span class="pill ghost">Primary</span>':''} ${isTop?'<span class="pill warn">Top today</span>':''}</b><span>${U.esc(k.location||'—')} · ${U.money0(rev)} today · ${ord} orders · ${people} people</span></div>
           ${active?'':`<button class="btn btn-ghost btn-sm" data-sw="${k.id}">Switch ›</button>`}</div>`;
       }).join('') : '<div class="empty"><div class="em">🏢</div><p>No branches yet</p></div>';
+      requestAnimationFrame(()=> U.qsa('.bestfill',c).forEach(b=> b.style.width=b.dataset.w+'%'));
       U.qsa('[data-sw]',el).forEach(b=>b.onclick=async()=>{
         const k=mine.find(x=>x.id===b.dataset.sw);
         MKR.auth.switchKitchen(b.dataset.sw);
