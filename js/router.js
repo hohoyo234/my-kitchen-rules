@@ -105,6 +105,8 @@ window.MKR = window.MKR || {};
     const view = document.getElementById('view');
     try{ await portal.view(section, view, arg, viewingRole); }
     catch(e){ console.error(e); view.innerHTML = `<div class="empty"><div class="em">😵</div><p>Page error: ${MKR.util.esc(e.message)}</p></div>`; }
+    // Gentle entrance for the freshly-rendered page (re-triggered each navigation).
+    view.classList.remove('view-enter'); void view.offsetWidth; view.classList.add('view-enter');
   }
 
   MKR.router = { render, parse,
