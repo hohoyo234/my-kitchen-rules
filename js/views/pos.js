@@ -140,46 +140,170 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
     }
   };
 
-  // ---------- Payment (cash change / card) ----------
+  // ---------- Payment (cash / card / stored-value · member loyalty · coupons) ----------
   function payModal(container, drawCart, onPaid){
-    const amount = total();
+    const base = total();                                  // subtotal after manual discount
     const cartSnapshot = cart.map(l=>({...l}));
     const tableNo = (U.qs('#tableNo',container)||{}).value || '';
-    let method='cash';
+    const M = MKR.membership;
+    let method='cash', member=null, coupon=null, redeemPts=0, cfg={pointsPerDollar:1, centsPerPoint:1};
+
     const wrap = U.el(`
       <div>
-        <div class="cart-total"><span>Total due</span><span class="v">${U.money(amount)}</span></div>
-        <div class="cat-tabs mt8" id="pm">
+        <div class="mem-box" id="memBox"></div>
+        <div class="cart-total"><span>Subtotal</span><span class="v" id="pSub">${U.money(base)}</span></div>
+        <div class="cart-total" id="pCouponRow" style="display:none;color:var(--accent)"><span id="pCouponLbl">Coupon</span><span id="pCoupon"></span></div>
+        <div class="cart-total" id="pRedeemRow" style="display:none;color:var(--accent)"><span>Points redeemed</span><span id="pRedeem"></span></div>
+        <div class="cart-total"><span>Total due</span><span class="v" id="pDue">${U.money(base)}</span></div>
+
+        <div class="row gap8 mt8 wrap" id="loyaltyCtrls">
+          <button class="btn btn-ghost btn-sm grow" id="cpnBtn">🎟️ Coupon</button>
+          <button class="btn btn-ghost btn-sm grow" id="redeemBtn" disabled>⭐ Redeem points</button>
+        </div>
+
+        <div class="cat-tabs mt12" id="pm">
           <button class="active" data-m="cash">💵 Cash</button>
           <button data-m="card">💳 Card</button>
+          <button data-m="balance" id="pmBal" disabled>💰 Balance</button>
         </div>
         <div id="cashArea">
           <div class="field"><label>Cash received</label><input class="input" id="recv" type="number" inputmode="decimal" placeholder="How much did they give"></div>
           <div class="cart-total"><span>Change</span><span class="v" id="change">$0.00</span></div>
         </div>
+        <div id="balArea" style="display:none"></div>
+        <div class="earn-hint mt8" id="earnHint"></div>
       </div>`);
+
+    // ----- derived amounts -----
+    function couponDisc(){ return coupon ? Math.min(coupon.discount, base) : 0; }
+    function afterCoupon(){ return Math.max(0, +(base - couponDisc()).toFixed(2)); }
+    function redeemValue(){ return Math.min(afterCoupon(), +((redeemPts*cfg.centsPerPoint/100)).toFixed(2)); }
+    function due(){ return Math.max(0, +(afterCoupon() - redeemValue()).toFixed(2)); }
+
+    function drawMember(){
+      const box = U.qs('#memBox',wrap);
+      if(!member){
+        box.innerHTML = `<button class="btn btn-ghost btn-block" id="addMem">👤 Add member · phone or QR</button>`;
+        U.qs('#addMem',box).onclick = memberLookup;
+      } else {
+        box.innerHTML = `<div class="mem-card">
+          <div class="grow"><b>${U.esc(member.name)}</b> <span class="pill ok">${member.id}</span>
+            <div class="muted" style="font-size:12px">⭐ ${member.points||0} pts · 💰 ${U.money(member.balance||0)}${member.phone?' · '+U.esc(member.phone):''}</div></div>
+          <button class="btn btn-ghost btn-sm" id="memX">Remove</button></div>`;
+        U.qs('#memX',box).onclick = ()=>{ member=null; redeemPts=0; if(method==='balance') method='cash'; refresh(); };
+      }
+    }
+    function refresh(){
+      drawMember();
+      // coupon row
+      const cr=U.qs('#pCouponRow',wrap);
+      if(coupon){ cr.style.display='flex'; U.qs('#pCouponLbl',wrap).textContent=`Coupon ${coupon.coupon.code}`; U.qs('#pCoupon',wrap).textContent='−'+U.money(couponDisc()); }
+      else cr.style.display='none';
+      // redeem row
+      const rr=U.qs('#pRedeemRow',wrap);
+      if(redeemPts>0){ rr.style.display='flex'; U.qs('#pRedeem',wrap).textContent=`−${U.money(redeemValue())} (${redeemPts} pts)`; }
+      else rr.style.display='none';
+      U.qs('#pDue',wrap).textContent = U.money(due());
+      // controls availability
+      U.qs('#redeemBtn',wrap).disabled = !(member && (member.points||0)>0);
+      const balBtn=U.qs('#pmBal',wrap); balBtn.disabled = !(member && (member.balance||0)>=due() && due()>0);
+      if(method==='balance' && balBtn.disabled){ method='cash'; U.qsa('#pm button',wrap).forEach(x=>x.classList.toggle('active',x.dataset.m==='cash')); }
+      // method areas
+      U.qs('#cashArea',wrap).style.display = method==='cash'?'block':'none';
+      U.qs('#balArea',wrap).style.display = method==='balance'?'block':'none';
+      if(method==='balance') U.qs('#balArea',wrap).innerHTML = `<div class="alert info"><span>💰</span><div>Pay ${U.money(due())} from balance · remaining ${U.money((member.balance||0)-due())}</div></div>`;
+      // change calc
+      const recv=U.qs('#recv',wrap); if(recv){ const c=(+recv.value||0)-due(); U.qs('#change',wrap).textContent=U.money(Math.max(0,c)); }
+      // earn hint
+      const willEarn = member ? Math.floor(due()*cfg.pointsPerDollar) : 0;
+      U.qs('#earnHint',wrap).innerHTML = member ? `<span class="muted">⭐ ${member.name} will earn <b>${willEarn}</b> points on this order</span>` : '';
+    }
+
+    // ----- member lookup / create -----
+    function memberLookup(){
+      const lw=U.el(`<div>
+        <div class="field"><label>Phone or member QR code</label><input class="input" id="mq" placeholder="0400 000 000 or M-code" autocomplete="off"></div>
+        <div id="mRes"></div></div>`);
+      const lm=U.modal('Add member', lw, {actions:[
+        {label:'Find', class:'btn-dark', onClick:async()=>{
+          const q=U.qs('#mq',lw).value.trim(); if(!q) return;
+          const found=await M.lookup(q);
+          const res=U.qs('#mRes',lw);
+          if(found){ member=found; lm.close(); refresh(); U.toast('Member added','green'); return; }
+          const digits=q.replace(/\D/g,'');
+          res.innerHTML = `<div class="alert amber"><span>🆕</span><div>No member found.${digits.length>=5?' Create one with this phone?':''}</div></div>
+            ${digits.length>=5?`<div class="field"><label>Member name</label><input class="input" id="mNew" placeholder="Customer name"></div>
+            <button class="btn btn-green btn-block" id="mCreate">Create member</button>`:''}`;
+          const cb=U.qs('#mCreate',res);
+          if(cb) cb.onclick=async()=>{ member=await M.create({phone:q, name:U.qs('#mNew',res).value.trim()}); lm.close(); refresh(); U.toast('New member created','green'); };
+        }}
+      ]});
+      setTimeout(()=>U.qs('#mq',lw).focus(),50);
+    }
+
+    // ----- coupon -----
+    U.qs('#cpnBtn',wrap).onclick=()=>{
+      const cw=U.el(`<div><div class="field"><label>Coupon code</label><input class="input" id="cc" placeholder="e.g. SAVE10" autocomplete="off"></div><div id="cMsg"></div></div>`);
+      const cm=U.modal('Apply coupon', cw, {actions:[
+        {label:'Apply', class:'btn-dark', onClick:async()=>{
+          const code=U.qs('#cc',cw).value.trim(); if(!code) return;
+          const v=await M.validateCoupon(code, member, base);
+          if(!v.ok){ U.qs('#cMsg',cw).innerHTML=`<div class="alert red"><span>⚠️</span><div>${U.esc(v.reason)}</div></div>`; return; }
+          coupon=v; cm.close(); refresh(); U.toast('Coupon applied','green');
+        }}
+      ]});
+      setTimeout(()=>U.qs('#cc',cw).focus(),50);
+    };
+
+    // ----- redeem points -----
+    U.qs('#redeemBtn',wrap).onclick=()=>{
+      if(!member) return;
+      const maxByPts=member.points||0;
+      const maxByDue=Math.floor(afterCoupon()*100/Math.max(1,cfg.centsPerPoint));
+      const maxPts=Math.max(0, Math.min(maxByPts, maxByDue));
+      const rw=U.el(`<div>
+        <div class="alert info"><span>⭐</span><div>${member.name} has <b>${maxByPts}</b> points · worth up to ${U.money(maxPts*cfg.centsPerPoint/100)} here</div></div>
+        <div class="field"><label>Points to redeem (max ${maxPts})</label><input class="input" id="rp" type="number" min="0" max="${maxPts}" value="${Math.min(redeemPts||maxPts, maxPts)}"></div></div>`);
+      U.modal('Redeem points', rw, {actions:[
+        {label:'Apply', class:'btn-dark', onClick:(c)=>{ redeemPts=Math.max(0,Math.min(maxPts, Math.floor(+U.qs('#rp',rw).value||0))); refresh(); c(); }}
+      ]});
+    };
+
     const m = U.modal('Payment', wrap, {actions:[
       {label:'Confirm payment · send to kitchen', class:'btn-green', onClick:async(close)=>{
+        const payable = due();
+        if(method==='balance' && (!member || (member.balance||0)<payable)){ U.toast('Insufficient balance','red'); return; }
+        const earned = member ? Math.floor(payable*cfg.pointsPerDollar) : 0;
         const order = {
           items: cartSnapshot, subtotal: cartSnapshot.reduce((s,l)=>s+l.price*l.qty,0),
-          total: amount, discountPct, method, table: tableNo,
+          total: payable, discountPct, method, table: tableNo,
+          couponCode: coupon?coupon.coupon.code:null, couponDiscount: couponDisc(),
+          pointsRedeemed: redeemPts, redeemValue: redeemValue(), pointsEarned: earned,
+          memberId: member?member.id:null, memberName: member?member.name:null,
+          balanceUsed: method==='balance'?payable:0,
           kitchenId: (MKR.auth.current()&&MKR.auth.current().kitchenId)||'k_main',
           server: (MKR.auth.current()&&MKR.auth.current().name)||'', serverId: (MKR.auth.current()&&MKR.auth.current().id)||'',
           status:'cooking', paid:true, payStatus:'paid'
         };
         const saved = await MKR.db.put('orders', order);
-        await MKR.audit.log({action:'order.create', desc:`Order #${saved.id.slice(-4)}${tableNo?' · table '+tableNo:''} · ${method==='cash'?'cash':'card'}`, amount:amount, target:saved.id});
-        U.toast(`Took ${U.money(amount)} · sent to kitchen`,'green');
+        if(member) await M.applyOrder(member.id, {orderId:saved.id, paid:payable, earned, redeemPoints:redeemPts, balanceUsed:order.balanceUsed, couponCode:order.couponCode});
+        if(coupon) await M.redeemCoupon(coupon.coupon, saved.id);
+        const methodLbl = method==='cash'?'cash':method==='card'?'card':'balance';
+        await MKR.audit.log({action:'order.create', desc:`Order #${saved.id.slice(-4)}${tableNo?' · table '+tableNo:''} · ${methodLbl}${member?' · '+member.name:''}`, amount:payable, target:saved.id});
+        U.toast(`Took ${U.money(payable)} · sent to kitchen${earned?` · +${earned} pts`:''}`,'green');
         close(); onPaid();
       }}
     ]});
+
     U.qsa('#pm button',wrap).forEach(b=>b.onclick=()=>{
+      if(b.disabled) return;
       U.qsa('#pm button',wrap).forEach(x=>x.classList.remove('active')); b.classList.add('active');
-      method=b.dataset.m; U.qs('#cashArea',wrap).style.display = method==='cash'?'block':'none';
+      method=b.dataset.m; refresh();
     });
-    const recv = U.qs('#recv',wrap);
-    recv.oninput = ()=>{ const c=(+recv.value||0)-amount; U.qs('#change',wrap).textContent = U.money(Math.max(0,c)); };
-    setTimeout(()=>recv.focus(),50);
+    U.qs('#recv',wrap).oninput = ()=>{ const c=(+U.qs('#recv',wrap).value||0)-due(); U.qs('#change',wrap).textContent = U.money(Math.max(0,c)); };
+
+    // load loyalty config, then first paint
+    (async()=>{ try{ cfg=await M.config(); }catch(e){} refresh(); })();
   }
 
   // ---------- Cash count: opening float (pre-open) or closing reconciliation ----------

@@ -31,13 +31,15 @@ window.MKR = window.MKR || {};
     avg:'<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.6 9.4a2.4 2 0 0 1 4.8 0c0 1.3-1.2 1.7-2.4 2.2s-2.4 1-2.4 2.4a2.4 2 0 0 0 4.8 0"/>',
     trend:'<path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v6h-6"/>',
     award:'<circle cx="12" cy="8" r="5"/><path d="M8.5 12.5 7 21l5-3 5 3-1.5-8.5"/>',
+    ticket:'<path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1 0 4 2 2 0 0 1-2 2H5a2 2 0 0 1-2-2 2 2 0 0 0 0-4 2 2 0 0 1 0-4z"/><path d="M14 6v12" stroke-dasharray="2 2"/>',
+    gift:'<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8M12 8v13"/><path d="M12 8S10.5 3 8 4.5 9.5 8 12 8zM12 8s1.5-5 4-3.5S14.5 8 12 8z"/>',
     dot:'<circle cx="12" cy="12" r="3.5"/>',
   };
 
   // nav id -> icon name
   const NAV = {
     dashboard:'grid', analytics:'trend', report:'mail', alerts:'bell', audit:'shield', labor:'bars',
-    team:'users', performance:'award', branches:'building', compliance:'shield', feedback:'star',
+    team:'users', performance:'award', membership:'idcard', branches:'building', compliance:'shield', feedback:'star',
     switch:'eye', settings:'gear', setup:'gear',
     schedule:'calendar', myshifts:'calcheck', my:'calcheck', hire:'userplus',
     menu:'utensils', tasks:'checksq', swaps:'repeat', pos:'receipt', kds:'monitor', qr:'qr',
@@ -51,5 +53,21 @@ window.MKR = window.MKR || {};
   }
   function navIcon(id){ return icon(NAV[id] || 'dot'); }
 
-  MKR.ui = { icon, navIcon, ICONS:P, NAV };
+  // Render a scannable QR for `text` (uses the qrcode-generator CDN lib when
+  // available; falls back to a styled code box for offline file:// use).
+  function qr(text, size=132){
+    const t = String(text||'');
+    if(window.qrcode){
+      try{
+        const q = window.qrcode(0, 'M'); q.addData(t); q.make();
+        const n = q.getModuleCount(), cell = Math.max(2, Math.floor(size/(n+2))), m = cell, dim = n*cell + m*2;
+        let rects='';
+        for(let r=0;r<n;r++) for(let col=0;col<n;col++) if(q.isDark(r,col)) rects+=`<rect x="${m+col*cell}" y="${m+r*cell}" width="${cell}" height="${cell}"/>`;
+        return `<svg class="qr" width="${dim}" height="${dim}" viewBox="0 0 ${dim} ${dim}" role="img" aria-label="QR ${t}"><rect width="${dim}" height="${dim}" fill="#fff"/><g fill="#111">${rects}</g></svg>`;
+      }catch(e){}
+    }
+    return `<div class="qr-fallback" style="width:${size}px;height:${size}px"><span>${t}</span></div>`;
+  }
+
+  MKR.ui = { icon, navIcon, qr, ICONS:P, NAV };
 })();

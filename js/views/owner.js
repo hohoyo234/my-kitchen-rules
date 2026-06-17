@@ -43,6 +43,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       {id:'labor',     label:'Labor cost',   em:'💰', short:'Labor'},
       {id:'team',      label:'Team',         em:'👥', short:'Team'},
       {id:'performance',label:'Performance', em:'🏅', short:'Perform'},
+      {id:'membership',label:'Membership',   em:'🪪', short:'Members'},
       {id:'branches',  label:'Branches',     em:'🏢', short:'Branches'},
       {id:'compliance',label:'Compliance',   em:'🛡️', short:'Comply'},
       {id:'feedback',  label:'Feedback',     em:'⭐', short:'Reviews'},
@@ -66,6 +67,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       if(section==='labor') return labor(c);
       if(section==='team') return team(c,arg);
       if(section==='performance') return performance(c);
+      if(section==='membership') return membership(c);
       if(section==='branches') return branches(c);
       if(section==='compliance') return compliance(c);
       if(section==='feedback') return feedback(c);
@@ -509,6 +511,191 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         await MKR.audit.log({action:'reward', desc:`Rewarded ${su.name}: ${note}${pts?` (+${pts} pts)`:''}`});
         cl(); U.toast('Reward recorded 🎁','green'); performance(c);
       }}]});
+    }
+  }
+
+  // ---------- Membership: points · stored value · coupons · repurchase analysis ----------
+  async function membership(c){
+    const M = MKR.membership;
+    const cfg = await M.config();
+    const members = await M.all();
+    const coupons = await M.allCoupons();
+    const orders = (await MKR.db.getAll('orders')).filter(o=>o.status!=='cancelled' && o.status!=='refunded');
+
+    const totalPts = members.reduce((a,m)=>a+(m.points||0),0);
+    const totalBal = members.reduce((a,m)=>a+(m.balance||0),0);
+    const repeat = members.filter(m=>(m.visits||0)>1).length;
+    const repeatRate = members.length ? Math.round(repeat/members.length*100) : 0;
+
+    // Frequently-bought-together: count unordered item-name pairs per order
+    const pairCount = {};
+    orders.forEach(o=>{
+      const names=[...new Set((o.items||[]).map(i=>i.nm).filter(Boolean))];
+      for(let i=0;i<names.length;i++) for(let j=i+1;j<names.length;j++){
+        const k=[names[i],names[j]].sort().join('  +  '); pairCount[k]=(pairCount[k]||0)+1;
+      }
+    });
+    const combos = Object.entries(pairCount).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    const maxCombo = combos.length?combos[0][1]:1;
+
+    // Top members by spend
+    const topMembers = members.slice().sort((a,b)=>(b.spent||0)-(a.spent||0)).slice(0,5);
+    const maxSpent = topMembers.length?(topMembers[0].spent||1):1;
+
+    const activeCoupons = coupons.filter(x=>!x.used).length;
+
+    c.innerHTML = `
+      <div class="section-head"><div><h2>Membership</h2><p>Loyalty points, stored value and e-coupons — plus repurchase & combo analysis. ${cfg.pointsPerDollar} pt / $1 · 100 pts = ${U.money(100*cfg.centsPerPoint/100)}.</p></div>
+        <button class="btn btn-ghost btn-sm" id="loyCfg">⚙️ Loyalty settings</button></div>
+
+      <div class="grid g4 mt8">
+        <div class="card stat"><div class="k">🪪 Members</div><div class="v">${members.length}</div></div>
+        <div class="card stat"><div class="k">🔁 Repurchase rate</div><div class="v">${repeatRate}<small>%</small></div><div class="delta flat">${repeat} returning</div></div>
+        <div class="card stat"><div class="k">⭐ Points outstanding</div><div class="v">${totalPts}</div></div>
+        <div class="card stat"><div class="k">💰 Stored value</div><div class="v">${U.money0(totalBal)}</div></div>
+      </div>
+
+      <div class="grid g2 mt16">
+        <div class="card">
+          <div class="section-title">🔁 Frequently bought together</div>
+          <div id="combos">${combos.length?combos.map(([k,n])=>`
+            <div class="li"><div class="meta"><b>${U.esc(k)}</b>
+              <div class="bar" style="margin-top:6px"><i style="width:${Math.round(n/maxCombo*100)}%"></i></div></div>
+              <b>${n}×</b></div>`).join(''):'<div class="empty"><p>Not enough order history yet</p></div>'}</div>
+        </div>
+        <div class="card">
+          <div class="section-title">💎 Top members by spend</div>
+          <div id="topMem">${topMembers.length?topMembers.map((m,i)=>`
+            <div class="li"><div class="ava">${['🥇','🥈','🥉'][i]||'#'+(i+1)}</div>
+              <div class="meta"><b>${U.esc(m.name)}</b><span>${m.visits||0} visits · ⭐ ${m.points||0} pts</span>
+                <div class="bar" style="margin-top:6px"><i style="width:${Math.round((m.spent||0)/maxSpent*100)}%"></i></div></div>
+              <b>${U.money(m.spent||0)}</b></div>`).join(''):'<div class="empty"><p>No members yet</p></div>'}</div>
+        </div>
+      </div>
+
+      <div class="card mt16">
+        <div class="section-head" style="margin-bottom:10px"><div class="section-title" style="margin:0">🎟️ Coupons <span class="muted" style="font-weight:400">· ${activeCoupons} active</span></div>
+          <button class="btn btn-dark btn-sm" id="issueCpn">＋ Issue coupon</button></div>
+        <div id="cpnList"></div>
+      </div>
+
+      <div class="card mt16">
+        <div class="section-head" style="margin-bottom:10px"><div class="section-title" style="margin:0">🪪 Members</div>
+          <input class="input" id="memSearch" placeholder="Search name / phone / code" style="height:38px;max-width:240px"></div>
+        <div id="memList"></div>
+      </div>`;
+
+    // ----- coupon list -----
+    function drawCoupons(){
+      const list=U.qs('#cpnList',c);
+      const sorted=coupons.slice().sort((a,b)=>(a.used-b.used)||(b.createdAt-a.createdAt));
+      list.innerHTML = sorted.length ? sorted.map(cp=>`
+        <div class="li">
+          <div class="ava">🎟️</div>
+          <div class="meta"><b>${cp.code} · ${cp.type==='pct'?cp.value+'% off':U.money(cp.value)+' off'}</b>
+            <span>${cp.minSpend?'min '+U.money(cp.minSpend)+' · ':''}${cp.memberId?'member '+cp.memberId:'public'}${cp.expiry?' · exp '+cp.expiry:''}</span></div>
+          <span class="pill ${cp.used?'danger':'ok'}">${cp.used?'Used':'Active'}</span>
+        </div>`).join('') : '<div class="empty"><div class="em">🎟️</div><p>No coupons yet</p></div>';
+    }
+    drawCoupons();
+
+    // ----- member list (searchable) -----
+    function drawMembers(q){
+      const list=U.qs('#memList',c);
+      const ql=(q||'').trim().toLowerCase();
+      const rows=members.filter(m=>!ql || (m.name||'').toLowerCase().includes(ql) || (m.phone||'').includes(ql) || (m.id||'').toLowerCase().includes(ql))
+        .sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0));
+      list.innerHTML = rows.length ? rows.map(m=>`
+        <div class="li" data-mem="${m.id}" style="cursor:pointer">
+          <div class="ava">${U.initials(m.name)}</div>
+          <div class="meta"><b>${U.esc(m.name)} <span class="pill ok">${m.id}</span></b>
+            <span>⭐ ${m.points||0} pts · 💰 ${U.money(m.balance||0)} · ${m.visits||0} visits${m.phone?' · '+U.esc(m.phone):''}</span></div>
+          <span class="muted" style="font-size:20px;line-height:1">›</span>
+        </div>`).join('') : '<div class="empty"><div class="em">🪪</div><p>No members yet — add them at checkout in POS</p></div>';
+      U.qsa('[data-mem]',list).forEach(b=>b.onclick=()=>memberDetail(members.find(m=>m.id===b.dataset.mem)));
+    }
+    drawMembers('');
+    U.qs('#memSearch',c).oninput=(e)=>drawMembers(e.target.value);
+
+    U.qs('#loyCfg',c).onclick=loyaltyModal;
+    U.qs('#issueCpn',c).onclick=()=>couponModal();
+
+    // ----- loyalty settings -----
+    function loyaltyModal(){
+      const f=(id,label,val,hint)=>`<div class="field"><label>${label}</label><input class="input" id="${id}" type="number" min="0" value="${val}">${hint?`<div class="muted" style="font-size:12px;margin-top:4px">${hint}</div>`:''}</div>`;
+      const wrap=U.el(`<div>${f('l_per','Points earned per $1 spent',cfg.pointsPerDollar)}${f('l_cpp','Redemption value — cents per point',cfg.centsPerPoint,'1 = 100 pts worth $1')}${f('l_bonus','Sign-up bonus points',cfg.signupBonus)}</div>`);
+      U.modal('Loyalty settings', wrap, {actions:[{label:'Save', class:'btn-dark', onClick:async(cl)=>{
+        await M.saveConfig({ pointsPerDollar:+U.qs('#l_per',wrap).value||0, centsPerPoint:+U.qs('#l_cpp',wrap).value||1, signupBonus:+U.qs('#l_bonus',wrap).value||0 });
+        cl(); U.toast('Loyalty settings saved','green'); membership(c);
+      }}]});
+    }
+
+    // ----- issue coupon -----
+    function couponModal(memberId){
+      const wrap=U.el(`<div>
+        <div class="cat-tabs" id="ct"><button class="active" data-t="pct">% off</button><button data-t="amt">$ off</button></div>
+        <div class="field mt8"><label id="vLbl">Percent off</label><input class="input" id="cv" type="number" min="0" value="10"></div>
+        <div class="field"><label>Minimum spend (optional)</label><input class="input" id="cmin" type="number" min="0" value="0"></div>
+        <div class="field"><label>Expiry date (optional)</label><input class="input" id="cexp" type="date"></div>
+        ${memberId?`<div class="alert info"><span>🪪</span><div>Issued to member <b>${memberId}</b></div></div>`:`<div class="field"><label>How many codes</label><input class="input" id="ccount" type="number" min="1" max="200" value="1"></div>`}
+      </div>`);
+      let type='pct';
+      U.qsa('#ct button',wrap).forEach(b=>b.onclick=()=>{ U.qsa('#ct button',wrap).forEach(x=>x.classList.remove('active')); b.classList.add('active'); type=b.dataset.t; U.qs('#vLbl',wrap).textContent=type==='pct'?'Percent off':'Amount off ($)'; });
+      U.modal(memberId?'Issue member coupon':'Issue coupons', wrap, {actions:[{label:'Issue', class:'btn-green', onClick:async(cl)=>{
+        const made=await M.issueCoupon({ type, value:+U.qs('#cv',wrap).value||0, minSpend:+U.qs('#cmin',wrap).value||0,
+          expiry:U.qs('#cexp',wrap).value||null, memberId:memberId||null, count:memberId?1:(+U.qs('#ccount',wrap).value||1) });
+        cl(); U.toast(`Issued ${made.length} coupon(s) · ${made[0].code}`,'green'); membership(c);
+      }}]});
+    }
+
+    // ----- member detail -----
+    function memberDetail(m){
+      if(!m) return;
+      const hist=(m.history||[]).slice().reverse().slice(0,12);
+      const histHtml=hist.length?hist.map(h=>{
+        const t=U.fmtDateTime(h.ts);
+        if(h.type==='order') return `<div class="li"><div class="meta"><b>Order #${(h.orderId||'').slice(-4)}</b><span>${t} · paid ${U.money(h.paid)}${h.earned?` · +${h.earned} pts`:''}${h.redeemed?` · −${h.redeemed} pts`:''}${h.balanceUsed?` · −${U.money(h.balanceUsed)} bal`:''}</span></div></div>`;
+        if(h.type==='topup') return `<div class="li"><div class="meta"><b>💰 Top-up ${U.money(h.amount)}</b><span>${t} · ${h.method||''} · by ${U.esc(h.by||'')}</span></div></div>`;
+        if(h.type==='adjust') return `<div class="li"><div class="meta"><b>⭐ ${h.points>=0?'+':''}${h.points} pts</b><span>${t}${h.note?' · '+U.esc(h.note):''} · by ${U.esc(h.by||'')}</span></div></div>`;
+        if(h.type==='signup') return `<div class="li"><div class="meta"><b>🎁 Welcome bonus +${h.points} pts</b><span>${t}</span></div></div>`;
+        return '';
+      }).join(''):'<div class="empty" style="padding:16px"><p>No activity yet</p></div>';
+      const wrap=U.el(`<div>
+        <div class="mem-detail">
+          <div class="qr-wrap">${MKR.ui.qr(m.id,128)}<div class="qr-code">${m.id}</div></div>
+          <div class="grow">
+            <div class="row gap8"><div class="kv"><div class="muted">Points</div><b>⭐ ${m.points||0}</b></div>
+              <div class="kv"><div class="muted">Balance</div><b>💰 ${U.money(m.balance||0)}</b></div>
+              <div class="kv"><div class="muted">Visits</div><b>${m.visits||0}</b></div>
+              <div class="kv"><div class="muted">Spent</div><b>${U.money(m.spent||0)}</b></div></div>
+            <div class="row gap8 mt12 wrap">
+              <button class="btn btn-dark btn-sm" id="mdTop">💰 Top up</button>
+              <button class="btn btn-ghost btn-sm" id="mdAdj">⭐ Adjust points</button>
+              <button class="btn btn-ghost btn-sm" id="mdCpn">🎟️ Give coupon</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-title mt16">Recent activity</div>
+        <div>${histHtml}</div>
+      </div>`);
+      const dm=U.modal(`${m.name} · ${m.phone||'no phone'}`, wrap);
+      U.qs('#mdTop',wrap).onclick=()=>{
+        const tw=U.el(`<div><div class="field"><label>Top-up amount</label><input class="input" id="ta" type="number" min="0" placeholder="0.00"></div>
+          <div class="cat-tabs" id="tm"><button class="active" data-m="cash">💵 Cash</button><button data-m="card">💳 Card</button></div></div>`);
+        let tmethod='cash'; U.qsa('#tm button',tw).forEach(b=>b.onclick=()=>{ U.qsa('#tm button',tw).forEach(x=>x.classList.remove('active')); b.classList.add('active'); tmethod=b.dataset.m; });
+        U.modal('Top up '+m.name, tw, {actions:[{label:'Add to balance', class:'btn-green', onClick:async(cl)=>{
+          const amt=+U.qs('#ta',tw).value||0; if(amt<=0){ U.toast('Enter an amount','red'); return; }
+          await M.topUp(m.id, amt, tmethod); cl(); dm.close(); U.toast(`Topped up ${U.money(amt)}`,'green'); membership(c);
+        }}]});
+      };
+      U.qs('#mdAdj',wrap).onclick=()=>{
+        const aw=U.el(`<div><div class="field"><label>Points (use − to deduct)</label><input class="input" id="ap" type="number" value="0"></div>
+          <div class="field"><label>Note</label><input class="input" id="an" placeholder="e.g. goodwill, correction"></div></div>`);
+        U.modal('Adjust points · '+m.name, aw, {actions:[{label:'Apply', class:'btn-dark', onClick:async(cl)=>{
+          await M.adjustPoints(m.id, +U.qs('#ap',aw).value||0, U.qs('#an',aw).value.trim()); cl(); dm.close(); U.toast('Points adjusted','green'); membership(c);
+        }}]});
+      };
+      U.qs('#mdCpn',wrap).onclick=()=>{ dm.close(); couponModal(m.id); };
     }
   }
 

@@ -472,3 +472,18 @@ select.input{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xml
 .nav-item .em svg{width:19px;height:19px}
 .mobile-nav a .em{display:inline-flex;align-items:center;justify-content:center}
 .mobile-nav a .em svg{width:22px;height:22px}
+
+/* ===== Membership / loyalty / QR ===== */
+.mem-box{margin-bottom:12px}
+.mem-card{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line-2);border-radius:14px;background:var(--accent-soft)}
+.earn-hint{font-size:12.5px}
+.qr{display:block;border-radius:10px}
+.qr-fallback{display:flex;align-items:center;justify-content:center;border:2px dashed var(--line);border-radius:12px;background:#fff;text-align:center;padding:8px}
+.qr-fallback span{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:18px;letter-spacing:2px;word-break:break-all}
+.mem-detail{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.qr-wrap{display:flex;flex-direction:column;align-items:center;gap:6px}
+.qr-code{font-family:ui-monospace,Menlo,monospace;font-weight:700;letter-spacing:2px;font-size:14px}
+.mem-detail .kv{background:var(--paper);border:1px solid var(--line-2);border-radius:11px;padding:8px 12px;min-width:78px}
+.mem-detail .kv .muted{font-size:11.5px}
+.mem-detail .kv b{font-size:16px;display:block;margin-top:2px}
+@media(max-width:520px){.mem-detail{flex-direction:column;align-items:stretch}}
