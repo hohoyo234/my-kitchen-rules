@@ -556,14 +556,14 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       </div>
 
       <div class="grid g2 mt16">
-        <div class="card">
+        <div class="card pad20">
           <div class="section-title">🔁 Frequently bought together</div>
           <div id="combos">${combos.length?combos.map(([k,n])=>`
             <div class="li"><div class="meta"><b>${U.esc(k)}</b>
               <div class="bar" style="margin-top:6px"><i style="width:${Math.round(n/maxCombo*100)}%"></i></div></div>
               <b>${n}×</b></div>`).join(''):'<div class="empty"><p>Not enough order history yet</p></div>'}</div>
         </div>
-        <div class="card">
+        <div class="card pad20">
           <div class="section-title">💎 Top members by spend</div>
           <div id="topMem">${topMembers.length?topMembers.map((m,i)=>`
             <div class="li"><div class="ava">${['🥇','🥈','🥉'][i]||'#'+(i+1)}</div>
@@ -573,13 +573,13 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         </div>
       </div>
 
-      <div class="card mt16">
+      <div class="card pad20 mt16">
         <div class="section-head" style="margin-bottom:10px"><div class="section-title" style="margin:0">🎟️ Coupons <span class="muted" style="font-weight:400">· ${activeCoupons} active</span></div>
           <button class="btn btn-dark btn-sm" id="issueCpn">＋ Issue coupon</button></div>
         <div id="cpnList"></div>
       </div>
 
-      <div class="card mt16">
+      <div class="card pad20 mt16">
         <div class="section-head" style="margin-bottom:10px"><div class="section-title" style="margin:0">🪪 Members</div>
           <input class="input" id="memSearch" placeholder="Search name / phone / code" style="height:38px;max-width:240px"></div>
         <div id="memList"></div>
