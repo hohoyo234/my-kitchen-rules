@@ -36,6 +36,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     home:'dashboard', subtitle:'Hands-off management — results & approvals only',
     nav:[
       {id:'dashboard', label:'Dashboard',    em:'📊', short:'Dash'},
+      {id:'analytics', label:'Analytics',    em:'📈', short:'Analytics'},
       {id:'report',    label:'Daily report', em:'📩', short:'Report'},
       {id:'alerts',    label:'Alerts',       em:'🚨', short:'Alerts'},
       {id:'audit',     label:'Audit log',    em:'🔍', short:'Audit'},
@@ -57,6 +58,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       }
       if(section==='setup') return setupWizard(c, sess && sess.kitchenId ? await MKR.db.get('kitchens', sess.kitchenId) : null);
       if(section==='dashboard') return dashboard(c);
+      if(section==='analytics') return analytics(c);
       if(section==='report') return report(c);
       if(section==='alerts') return alerts(c);
       if(section==='audit') return audit(c);
@@ -327,6 +329,78 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const red = m.alerts.slice(0,4);
     ap.innerHTML = red.length? red.map(a=>`<div class="alert ${a.level==='red'?'red':'amber'}" style="margin-bottom:10px"><span>${a.level==='red'?'⚠️':'🔔'}</span><div><b>${U.esc(a.title)}</b><br>${U.esc(a.desc)} · <span class="faint">${U.ago(a.ts)}</span></div></div>`).join('')
       : `<div class="empty"><div class="em">😌</div><p>No issues — running quietly</p></div>`;
+  }
+
+  // ---------- Sales analytics ----------
+  async function analytics(c){
+    const orders = await MKR.db.getAll('orders');
+    const paid = orders.filter(o=>o.paid && o.status!=='cancelled' && o.status!=='refunded');
+    const now=Date.now(); const cut30=now-30*864e5;
+    const p30 = paid.filter(o=>o.createdAt>=cut30);
+    const rev30=p30.reduce((s,o)=>s+o.total,0), ord30=p30.length, avg=ord30?rev30/ord30:0;
+
+    // 14-day revenue series
+    const today=new Date(); today.setHours(0,0,0,0);
+    const days=[]; for(let i=13;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); const iso=d.toISOString().slice(0,10);
+      days.push({label:(d.getMonth()+1)+'/'+d.getDate(), rev:paid.filter(o=>new Date(o.createdAt).toISOString().slice(0,10)===iso).reduce((s,o)=>s+o.total,0)}); }
+    const maxRev=Math.max(1,...days.map(d=>d.rev));
+
+    // sellers (last 30d)
+    const sell={}; p30.forEach(o=>(o.items||[]).forEach(it=>{ sell[it.nm]=(sell[it.nm]||0)+(it.qty||0); }));
+    const sorted=Object.entries(sell).sort((a,b)=>b[1]-a[1]);
+    const top=sorted.slice(0,5), bottom=sorted.length>5?sorted.slice(-3).reverse():[];
+    const maxQ=Math.max(1,...sorted.map(s=>s[1]));
+
+    // day-parts
+    const PARTS=[['Morning',6,11],['Lunch',11,15],['Afternoon',15,17],['Dinner',17,22],['Late night',22,30]];
+    const partRev=PARTS.map(([label,a,b])=>({label, rev:p30.filter(o=>{ let h=new Date(o.createdAt).getHours(); if(b>24&&h<6)h+=24; return h>=a&&h<b; }).reduce((s,o)=>s+o.total,0)}));
+    const maxPart=Math.max(1,...partRev.map(p=>p.rev));
+    const busiest=partRev.slice().sort((a,b)=>b.rev-a.rev)[0];
+
+    // payment mix
+    const cash=p30.filter(o=>o.method==='cash').length, card=ord30-cash;
+    const cashPct=ord30?Math.round(cash/ord30*100):0;
+
+    const I=(n)=> MKR.ui?MKR.ui.icon(n):'';
+    const tile=(ic,label,val,sub)=>`<div class="card ds-tile"><div class="ds-ico">${I(ic)}</div><div class="ds-tile-body"><span class="ds-tile-label">${label}</span><span class="ds-tile-val">${val}</span><span class="ds-tile-delta">${sub||''}</span></div></div>`;
+    const barRow=(label,val,max,fmt)=>`<div class="bestrow"><span class="bestnm">${U.esc(label)}</span><div class="besttrack"><div class="bestfill" data-w="${Math.round(val/max*100)}"></div></div><b class="bestq">${fmt(val)}</b></div>`;
+
+    c.innerHTML=`
+      <div class="section-head"><div><h2>Analytics</h2><p>What's making money — last 30 days of sales, sellers and patterns</p></div></div>
+      <div class="grid g4" style="margin-bottom:16px">
+        ${tile('grid','Revenue (30 days)', U.money0(rev30))}
+        ${tile('receipt','Orders (30 days)', ord30)}
+        ${tile('avg','Avg order value', U.money(avg))}
+        ${tile('clock','Busiest period', busiest&&busiest.rev>0?busiest.label:'—')}
+      </div>
+
+      <div class="card pad20" style="margin-bottom:16px">
+        <div class="section-title">${I('bars')} Revenue · last 14 days</div>
+        <div class="ds-bars" style="margin-top:6px">${days.map(d=>`<div class="ds-bar-wrap"><div class="ds-bar" data-h="${Math.round(d.rev/maxRev*100)}" title="${U.money0(d.rev)}"></div></div>`).join('')}</div>
+        <div class="ds-bars-x">${days.map((d,i)=>`<span>${i%2===0?d.label:''}</span>`).join('')}</div>
+      </div>
+
+      <div class="grid g2" style="align-items:start">
+        <div class="card pad20">
+          <div class="section-title">${I('star')} Top sellers · 30 days</div>
+          <div class="bestlist">${top.length? top.map(([nm,q])=>barRow(nm,q,maxQ,v=>v)).join('') : '<div class="empty" style="padding:16px"><div class="em">🍽️</div><p>No sales yet</p></div>'}</div>
+          ${bottom.length?`<div class="section-title mt16">${I('repeat')} Slow movers</div><div class="bestlist">${bottom.map(([nm,q])=>barRow(nm,q,maxQ,v=>v)).join('')}</div>`:''}
+        </div>
+        <div class="card pad20">
+          <div class="section-title">${I('clock')} Revenue by time of day</div>
+          <div class="bestlist">${partRev.map(p=>barRow(p.label,p.rev,maxPart,v=>U.money0(v))).join('')}</div>
+          <div class="section-title mt16">${I('receipt')} Payment mix</div>
+          <div class="gauge"><div class="gauge-fill" data-w="${cashPct}" style="background:var(--green)"></div></div>
+          <div class="gauge-legend"><span>💵 Cash ${cash} (${cashPct}%)</span><span>💳 Card ${card} (${100-cashPct}%)</span></div>
+        </div>
+      </div>
+      <div class="disclaimer mt16"><span>📈</span>Figures cover paid orders across your venues for the last 30 days. Use them to plan menu, staffing and promotions — they don't constitute financial advice.</div>`;
+
+    requestAnimationFrame(()=>{
+      U.qsa('.ds-bar',c).forEach(b=> b.style.height=b.dataset.h+'%');
+      U.qsa('.bestfill',c).forEach(b=> b.style.width=b.dataset.w+'%');
+      U.qsa('.gauge-fill',c).forEach(b=> b.style.width=b.dataset.w+'%');
+    });
   }
 
   // ---------- Daily report ----------

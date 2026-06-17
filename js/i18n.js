@@ -368,6 +368,17 @@ window.MKR = window.MKR || {};
     "Staff swap market":"员工换班市场", "Staff availability":"员工可用时间",
     "Table QR ordering":"桌台二维码点单", "Notifications & nudges":"通知与提醒",
 
+    // ---- Analytics ----
+    "Analytics":"经营分析",
+    "What's making money — last 30 days of sales, sellers and patterns":"看清赚钱点 — 近 30 天的销售、热卖与规律",
+    "Revenue (30 days)":"营业额（30 天）", "Orders (30 days)":"订单（30 天）", "Busiest period":"最旺时段",
+    "Revenue · last 14 days":"营业额 · 近 14 天",
+    "Top sellers · 30 days":"热卖榜 · 30 天", "Slow movers":"滞销品",
+    "Revenue by time of day":"各时段营业额", "Payment mix":"支付方式占比",
+    "Morning":"早市", "Lunch":"午市", "Afternoon":"下午", "Dinner":"晚市", "Late night":"夜宵",
+    "Avg order value":"客单价",
+    "Figures cover paid orders across your venues for the last 30 days. Use them to plan menu, staffing and promotions — they don't constitute financial advice.":"数据涵盖近 30 天各门店的已付订单，可用于菜单、排班与促销规划 — 不构成财务建议。",
+
     // ---- Branches (multi-venue) ----
     "Branches":"分店",
     "All your venues at a glance — compare today's performance, then switch in to manage one":"一览你的所有门店 — 对比今日业绩，点进去管理单店",

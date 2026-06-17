@@ -28,12 +28,14 @@ window.MKR = window.MKR || {};
     idcard:'<rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="11" r="2.2"/><path d="M4.5 16a3.5 3.5 0 0 1 7 0M14.5 9.5h5M14.5 13.5h5"/>',
     inbox:'<path d="M3 13h5l1 3h6l1-3h5"/><path d="M5 5h14l2 8v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-5z"/>',
     search:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/>',
+    avg:'<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.6 9.4a2.4 2 0 0 1 4.8 0c0 1.3-1.2 1.7-2.4 2.2s-2.4 1-2.4 2.4a2.4 2 0 0 0 4.8 0"/>',
+    trend:'<path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v6h-6"/>',
     dot:'<circle cx="12" cy="12" r="3.5"/>',
   };
 
   // nav id -> icon name
   const NAV = {
-    dashboard:'grid', report:'mail', alerts:'bell', audit:'shield', labor:'bars',
+    dashboard:'grid', analytics:'trend', report:'mail', alerts:'bell', audit:'shield', labor:'bars',
     team:'users', branches:'building', compliance:'shield', feedback:'star',
     switch:'eye', settings:'gear', setup:'gear',
     schedule:'calendar', myshifts:'calcheck', my:'calcheck', hire:'userplus',
