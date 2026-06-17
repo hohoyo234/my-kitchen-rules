@@ -121,6 +121,26 @@ grant select on public.menu, public.kitchens, public.app_meta to anon;   -- view
 grant insert on public.orders, public.kitchens, public.customer_feedback to anon; -- place order / apply / leave feedback
 
 -- ----------------------------------------------------------------------------
+-- 2.5) WIPE every pre-existing policy on these tables first. RLS policies are
+--      OR-combined, so a leftover permissive policy (e.g. an old `to anon
+--      using(true)`) from an earlier setup would keep the door open even after
+--      we add the strict ones below. Start from a clean slate.
+-- ----------------------------------------------------------------------------
+do $$
+declare r record;
+begin
+  for r in
+    select tablename, policyname from pg_policies
+    where schemaname='public' and tablename = any(array[
+      'kitchens','users','menu','orders','shifts','tasks','swaps','sos','alerts',
+      'reconciliations','clockins','onboarding','audit','customer_feedback',
+      'members','coupons','profiles','app_meta'])
+  loop
+    execute format('drop policy if exists %I on public.%I', r.policyname, r.tablename);
+  end loop;
+end $$;
+
+-- ----------------------------------------------------------------------------
 -- 3) Generic per-tenant tables: an ACTIVE signed-in user may touch only rows
 --    belonging to THEIR kitchen; the super admin sees everything.
 -- ----------------------------------------------------------------------------
