@@ -52,6 +52,22 @@ create table if not exists public.profiles (
   created_at timestamptz default now()
 );
 
+-- A profiles table may ALREADY exist from an earlier partial setup and be missing
+-- newer columns (e.g. kitchen_id). `create table if not exists` above won't add
+-- them, so patch the columns the policies below depend on. Harmless if present.
+alter table public.profiles add column if not exists username   text;
+alter table public.profiles add column if not exists name       text;
+alter table public.profiles add column if not exists role       text;
+alter table public.profiles add column if not exists staff_id   text;
+alter table public.profiles add column if not exists kitchen_id text;
+alter table public.profiles add column if not exists emoji      text;
+alter table public.profiles add column if not exists active     boolean not null default true;
+alter table public.profiles add column if not exists created_at timestamptz default now();
+-- Existing demo profiles had no kitchen → default them to the demo venue so they
+-- keep seeing their data. (The super admin bypasses kitchen scoping anyway.)
+update public.profiles set kitchen_id = 'k_main'
+  where kitchen_id is null and coalesce(role,'') <> 'superadmin';
+
 -- ----------------------------------------------------------------------------
 -- 1) Helper functions (SECURITY DEFINER so they can read profiles regardless of
 --    the caller's own RLS). Fixed search_path = anti-hijack hardening.
