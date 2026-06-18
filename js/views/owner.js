@@ -170,9 +170,30 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const mods = await MKR.features.load();
     const roleNames={owner:'Owner',manager:'Manager',staff:'Staff'};
     const work = JSON.parse(JSON.stringify(mods));
+    const sess = MKR.auth.current();
+    const kitchen = sess && sess.kitchenId ? await MKR.db.get('kitchens', sess.kitchenId) : null;
+    let rLogo = kitchen ? (kitchen.logo||null) : null;
     c.innerHTML=`
       <div class="section-head"><div><h2>Settings</h2><p>Toggle modules · control which roles can access each one</p></div>
         <button class="btn btn-dark btn-sm" id="saveBtn">Save settings</button></div>
+      ${kitchen?`
+      <div class="card pad20" style="margin-bottom:16px">
+        <div class="section-title" style="margin-top:0">🏪 Restaurant profile</div>
+        <p class="muted" style="font-size:13px;margin-bottom:12px">Your logo and name appear in the sidebar, on the sign-in page and across every portal.</p>
+        <div class="row gap8 wrap" style="align-items:flex-start">
+          <label class="img-drop" style="width:140px;flex:none">
+            <div class="img-preview" id="rLogoPrev" style="min-height:120px">${rLogo?`<img src="${rLogo}">`:'<span>📷 Tap to upload</span>'}</div>
+            <input type="file" id="rLogoFile" accept="image/*" hidden>
+          </label>
+          <div class="grow" style="min-width:200px">
+            <div class="field"><label>Restaurant name</label><input class="input" id="rName" value="${U.esc(kitchen.name||'')}" placeholder="Your restaurant name"></div>
+            <div class="row gap8 wrap">
+              <button class="btn btn-dark btn-sm" id="rSave">Save profile</button>
+              <button class="btn btn-ghost btn-sm" id="rClear">Remove logo</button>
+            </div>
+          </div>
+        </div>
+      </div>`:''}
       <div class="card" style="padding:14px 18px;margin-bottom:16px"><div class="li" style="border:none;padding:0">
         <div class="meta"><b>System language</b><span>English / 简体中文</span></div>
         ${MKR.i18n?MKR.i18n.switcher():''}
@@ -200,6 +221,23 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       await MKR.audit.log({action:'settings.update', desc:'Updated settings / permissions'});
       U.toast('Settings saved across the venue','green');
     };
+
+    // ---- Restaurant profile (logo + name) ----
+    if(kitchen){
+      const prev=U.qs('#rLogoPrev',c);
+      U.qs('#rLogoFile',c).onchange=(e)=>{ const f=e.target.files[0]; if(!f) return;
+        if(f.size>2*1024*1024){ U.toast('Image too large — please use one under 2 MB','red'); return; }
+        const r=new FileReader(); r.onload=()=>{ rLogo=r.result; prev.innerHTML=`<img src="${rLogo}">`; }; r.readAsDataURL(f); };
+      U.qs('#rClear',c).onclick=()=>{ rLogo=null; prev.innerHTML='<span>📷 Tap to upload</span>'; };
+      U.qs('#rSave',c).onclick=async()=>{
+        const name=U.qs('#rName',c).value.trim()||kitchen.name;
+        await MKR.db.put('kitchens',{id:kitchen.id, name, logo:rLogo});
+        await MKR.db.meta('brand', {name, avatar:rLogo});      // keeps the sign-in page in sync
+        await MKR.audit.log({action:'settings.update', desc:'Updated restaurant profile (logo / name)'});
+        U.toast('Restaurant profile saved','green');
+        MKR.router.refresh();                                  // repaint the shell with the new logo/name
+      };
+    }
   }
 
   // ---------- Dashboard ----------

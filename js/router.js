@@ -69,10 +69,20 @@ window.MKR = window.MKR || {};
     const prevSidebar = root.querySelector('.sidebar');
     const savedSideScroll = prevSidebar ? prevSidebar.scrollTop : 0;
 
+    // Brand the shell with the venue's own logo + name (set by the owner).
+    let brandName='My Kitchen', brandLogo=null;
+    if(sess.kitchenId && viewingRole!=='superadmin'){
+      try{ const k=await MKR.db.get('kitchens', sess.kitchenId); if(k){ brandName=k.name||brandName; brandLogo=k.logo||null; } }catch(e){}
+    }
+    const brandLetter=(brandName||'M').trim().charAt(0).toUpperCase()||'M';
+    const logoHtml = brandLogo
+      ? `<div class="logo" style="overflow:hidden;padding:0"><img src="${brandLogo}" alt="" style="width:100%;height:100%;object-fit:cover"></div>`
+      : `<div class="logo">${MKR.util.esc(brandLetter)}</div>`;
+
     root.innerHTML = `
       <div class="shell">
         <aside class="sidebar">
-          <div class="side-brand"><div class="logo">M</div><div><b>My Kitchen</b><small>${MKR.auth.roleName(viewingRole)}</small></div></div>
+          <div class="side-brand">${logoHtml}<div><b>${MKR.util.esc(brandName)}</b><small>${MKR.auth.roleName(viewingRole)}</small></div></div>
           ${nav}
           <div class="side-foot">
             <div class="who" style="margin-bottom:10px"><div class="ava">${sess.emoji||MKR.util.initials(sess.name)}</div><div><b style="font-size:14px">${MKR.util.esc(sess.name)}</b><div class="faint" style="font-size:11.5px">${MKR.auth.roleName(sess.role)}${preview?' · previewing '+MKR.auth.roleName(viewingRole):''}</div></div></div>

@@ -470,6 +470,12 @@ window.MKR = window.MKR || {};
     // ---- Owner: setup wizard ----
     "1 · Restaurant logo":"1 · 餐厅 Logo", "2 · Choose your features":"2 · 选择功能",
     "Your logo appears on the sign-in page and in every portal.":"你的 Logo 会显示在登录页和各个端。",
+    "🏪 Restaurant profile":"🏪 餐厅资料",
+    "Your logo and name appear in the sidebar, on the sign-in page and across every portal.":"你的 Logo 和名称会显示在侧边栏、登录页以及各个端。",
+    "📷 Tap to upload":"📷 点击上传", "Your restaurant name":"你的餐厅名称",
+    "Save profile":"保存资料", "Remove logo":"移除 Logo",
+    "Restaurant profile saved":"餐厅资料已保存",
+    "Image too large — please use one under 2 MB":"图片过大 —— 请使用 2 MB 以内的图片",
     "Display name":"显示名称",
     "Tick the modules you want. Unticked ones are hidden from your team.":"勾选你需要的模块，未勾选的将对团队隐藏。",
     "✅ Finish setup":"✅ 完成设置",
