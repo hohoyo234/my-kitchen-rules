@@ -18,6 +18,7 @@ window.MKR = window.MKR || {};
     market:   {label:'Staff swap market',   on:true, roles:['staff']},
     availability:{label:'Staff availability',on:true, roles:['staff']},
     qrorder:  {label:'Table QR ordering',   on:true, roles:['manager']},
+    bookings: {label:'Bookings & queue',     on:true, roles:['manager']},
     notify:   {label:'Notifications & nudges',on:true, roles:['owner','manager','staff']},
   };
 

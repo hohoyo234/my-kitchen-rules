@@ -31,6 +31,19 @@ window.MKR = window.MKR || {};
     "Reviews":"评价", "Switch":"切换", "Settings":"设置", "Branches":"分店",
     // Sold-out / 86
     "⛔ Sold out":"⛔ 沽清", "↩︎ Back in stock":"↩︎ 恢复供应", "Sold out":"沽清",
+    // Bookings & queue
+    "Bookings":"预订", "Bookings & queue":"预订与排队",
+    "Table reservations and the live walk-in waitlist":"桌位预订与实时叫号排队",
+    "📅 Upcoming bookings":"📅 即将到店", "⏳ Waiting now":"⏳ 当前等位", "🔔 Called":"🔔 已叫号",
+    "📅 Reservations":"📅 桌位预订", "⏳ Walk-in queue":"⏳ 叫号排队",
+    "＋ New booking":"＋ 新建预订", "＋ Add to queue":"＋ 加入排队", "Add to queue":"加入排队",
+    "No upcoming bookings":"暂无即将到店预订", "Queue is empty":"排队为空",
+    "Seat":"入座", "No-show":"未到", "🔔 Call":"🔔 叫号", "Left":"离开", "Today":"今天",
+    "New booking":"新建预订", "Guest name":"客人姓名", "Party size":"人数",
+    "Note (optional)":"备注（可选）", "Add booking":"添加预订", "e.g. window seat, birthday":"例如：靠窗、生日",
+    "Name (optional)":"姓名（可选）", "Walk-in name":"到店客人姓名", "Optional · for SMS":"可选 · 用于短信",
+    "Booking added":"预订已添加", "Called":"已叫号", "Seated":"已入座", "Removed from queue":"已移出排队",
+    "Seated booking":"已为预订入座", "Marked no-show":"已标记未到", "Cancelled booking":"已取消预订",
     // Refund approval
     "Manager approval":"经理审批", "Manager username":"经理用户名", "Manager password":"经理密码",
     "Approve refund":"批准退款", "Wrong manager username or password":"经理用户名或密码错误",
@@ -698,6 +711,11 @@ window.MKR = window.MKR || {};
     // Sold-out toasts
     [/^“(.+)” marked sold out$/, m => `“${m[1]}” 已沽清`],
     [/^“(.+)” back in stock$/, m => `“${m[1]}” 已恢复供应`],
+    // Bookings & queue dynamic lines
+    [/^Today (\d{2}:\d{2}) · (\d+) ppl(.*)$/, m => `今天 ${m[1]} · ${m[2]} 人${m[3]}`],
+    [/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}) · (\d+) ppl(.*)$/, m => `${m[1]} ${m[2]} · ${m[3]} 人${m[4]}`],
+    [/^(\d+) ppl(.*) · waiting (.+)$/, m => `${m[1]} 人${m[2]} · 已等 ${m[3]}`],
+    [/^Added · ticket #(\d+)$/, "已加入 · 号码 #$1"],
     // Refund approval
     [/^Refunds need a manager's approval\. Ask a manager to sign off on refunding #(\w+) \((.+)\)\.$/,
       m => `退款需经理审批。请经理确认为订单 #${m[1]}（${m[2]}）退款。`],

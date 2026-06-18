@@ -24,6 +24,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       {id:'swaps',    label:'Swaps / SOS', em:'🔁', short:'Swaps',  feature:'swaps'},
       {id:'pos',      label:'POS',         em:'🧾', short:'POS',    feature:'pos'},
       {id:'kds',      label:'Kitchen',     em:'📺', short:'Kitchen',feature:'kds'},
+      {id:'bookings', label:'Bookings',    em:'📖', short:'Bookings',feature:'bookings'},
       {id:'qr',       label:'Table QR',    em:'📱', short:'QR',     feature:'qrorder'},
     ],
     async badges(){
@@ -40,8 +41,118 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       if(section==='menu') return menuManager(c);
       if(section==='tasks') return tasks(c);
       if(section==='swaps') return swaps(c);
+      if(section==='bookings') return bookings(c);
     }
   };
+
+  // ---------- Reservations + walk-in queue ----------
+  async function bookings(c){
+    const today = U.todayISO();
+    let resv  = await MKR.db.getAll('reservations');
+    let queue = await MKR.db.getAll('waitlist');
+
+    function nextTicket(){
+      const todays = queue.filter(q=>new Date(q.createdAt).toISOString().slice(0,10)===today);
+      return todays.reduce((mx,q)=>Math.max(mx, q.num||0), 0) + 1;
+    }
+
+    async function reload(){ resv = await MKR.db.getAll('reservations'); queue = await MKR.db.getAll('waitlist'); draw(); }
+
+    function draw(){
+      const upcoming = resv.filter(r=>r.status==='booked' && r.date>=today).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+      const seatedToday = resv.filter(r=>r.status==='seated' && r.date===today);
+      const waiting = queue.filter(q=>q.status==='waiting' || q.status==='called').sort((a,b)=>a.createdAt-b.createdAt);
+      c.innerHTML = `
+        <div class="section-head"><div><h2>Bookings &amp; queue</h2><p>Table reservations and the live walk-in waitlist</p></div></div>
+        <div class="grid g3" style="margin-bottom:16px">
+          <div class="card stat"><div class="k">📅 Upcoming bookings</div><div class="v">${upcoming.length}</div></div>
+          <div class="card stat"><div class="k">⏳ Waiting now</div><div class="v">${waiting.filter(q=>q.status==='waiting').length}</div></div>
+          <div class="card stat"><div class="k">🔔 Called</div><div class="v">${waiting.filter(q=>q.status==='called').length}</div></div>
+        </div>
+        <div class="grid g2">
+          <div class="card pad20">
+            <div class="section-head" style="margin-bottom:10px"><div class="section-title" style="margin:0">📅 Reservations</div>
+              <button class="btn btn-dark btn-sm" id="addResv">＋ New booking</button></div>
+            <div id="resvList"></div>
+          </div>
+          <div class="card pad20">
+            <div class="section-head" style="margin-bottom:10px"><div class="section-title" style="margin:0">⏳ Walk-in queue</div>
+              <button class="btn btn-dark btn-sm" id="addQ">＋ Add to queue</button></div>
+            <div id="qList"></div>
+          </div>
+        </div>`;
+
+      const rl = U.qs('#resvList',c);
+      rl.innerHTML = upcoming.length ? upcoming.map(r=>`
+        <div class="li"><div class="ava">${r.partySize||'?'}</div>
+          <div class="meta"><b>${U.esc(r.name)}</b>
+            <span>${r.date===today?'Today':r.date} ${r.time} · ${r.partySize} ppl${r.phone?' · '+U.esc(r.phone):''}${r.note?' · '+U.esc(r.note):''}</span></div>
+          <div class="row gap6 wrap"><button class="btn btn-green btn-sm" data-seat="${r.id}">Seat</button>
+            <button class="btn btn-ghost btn-sm" data-noshow="${r.id}">No-show</button>
+            <button class="btn btn-ghost btn-sm" data-cancelr="${r.id}">✕</button></div>
+        </div>`).join('') : '<div class="empty"><div class="em">📅</div><p>No upcoming bookings</p></div>';
+
+      const ql = U.qs('#qList',c);
+      ql.innerHTML = waiting.length ? waiting.map(q=>`
+        <div class="li"><div class="ava">${q.num}</div>
+          <div class="meta"><b>${U.esc(q.name||('#'+q.num))} ${q.status==='called'?'<span class="pill warn">Called</span>':''}</b>
+            <span>${q.partySize} ppl${q.phone?' · '+U.esc(q.phone):''} · waiting ${U.ago(q.createdAt)}</span></div>
+          <div class="row gap6 wrap">${q.status==='waiting'?`<button class="btn btn-accent btn-sm" data-call="${q.id}">🔔 Call</button>`:''}
+            <button class="btn btn-green btn-sm" data-qseat="${q.id}">Seat</button>
+            <button class="btn btn-ghost btn-sm" data-qleft="${q.id}">Left</button></div>
+        </div>`).join('') : '<div class="empty"><div class="em">⏳</div><p>Queue is empty</p></div>';
+
+      U.qs('#addResv',c).onclick = resvModal;
+      U.qs('#addQ',c).onclick = queueModal;
+      U.qsa('[data-seat]',rl).forEach(b=>b.onclick=()=>setResv(b.dataset.seat,'seated','Seated booking'));
+      U.qsa('[data-noshow]',rl).forEach(b=>b.onclick=()=>setResv(b.dataset.noshow,'noshow','Marked no-show'));
+      U.qsa('[data-cancelr]',rl).forEach(b=>b.onclick=()=>setResv(b.dataset.cancelr,'cancelled','Cancelled booking'));
+      U.qsa('[data-call]',ql).forEach(b=>b.onclick=async()=>{ await MKR.db.put('waitlist',{id:b.dataset.call,status:'called',calledAt:Date.now()}); U.toast('Called','green'); reload(); });
+      U.qsa('[data-qseat]',ql).forEach(b=>b.onclick=async()=>{ await MKR.db.put('waitlist',{id:b.dataset.qseat,status:'seated'}); U.toast('Seated','green'); reload(); });
+      U.qsa('[data-qleft]',ql).forEach(b=>b.onclick=async()=>{ await MKR.db.put('waitlist',{id:b.dataset.qleft,status:'left'}); U.toast('Removed from queue','amber'); reload(); });
+    }
+
+    async function setResv(id, status, desc){
+      await MKR.db.put('reservations',{id, status});
+      await MKR.audit.log({action:'booking.update', desc:`${desc} #${id.slice(-4)}`});
+      U.toast(desc,'green'); reload();
+    }
+
+    function resvModal(){
+      const wrap = U.el(`<div>
+        <div class="field"><label>Guest name</label><input class="input" id="rv_n" placeholder="Name"></div>
+        <div class="row"><div class="field grow"><label>Phone</label><input class="input" id="rv_p" placeholder="Optional"></div>
+          <div class="field grow"><label>Party size</label><input class="input" id="rv_sz" type="number" min="1" value="2"></div></div>
+        <div class="row"><div class="field grow"><label>Date</label><input class="input" id="rv_d" type="date" value="${today}"></div>
+          <div class="field grow"><label>Time</label><input class="input" id="rv_t" type="time" value="18:00"></div></div>
+        <div class="field"><label>Note (optional)</label><input class="input" id="rv_note" placeholder="e.g. window seat, birthday"></div>
+      </div>`);
+      U.modal('New booking', wrap, {actions:[{label:'Add booking', class:'btn-dark', onClick:async(cl)=>{
+        const name=U.qs('#rv_n',wrap).value.trim(); if(!name){ U.toast('Enter a name','red'); return; }
+        await MKR.db.put('reservations',{ name, phone:U.qs('#rv_p',wrap).value.trim(), partySize:+U.qs('#rv_sz',wrap).value||1,
+          date:U.qs('#rv_d',wrap).value||today, time:U.qs('#rv_t',wrap).value||'', note:U.qs('#rv_note',wrap).value.trim(),
+          status:'booked', kitchenId:(MKR.auth.current()&&MKR.auth.current().kitchenId)||'k_main' });
+        await MKR.audit.log({action:'booking.create', desc:`New booking · ${name}`});
+        cl(); U.toast('Booking added','green'); reload();
+      }}]});
+    }
+
+    function queueModal(){
+      const wrap = U.el(`<div>
+        <div class="field"><label>Name (optional)</label><input class="input" id="q_n" placeholder="Walk-in name"></div>
+        <div class="row"><div class="field grow"><label>Phone</label><input class="input" id="q_p" placeholder="Optional · for SMS"></div>
+          <div class="field grow"><label>Party size</label><input class="input" id="q_sz" type="number" min="1" value="2"></div></div>
+      </div>`);
+      U.modal('Add to queue', wrap, {actions:[{label:'Add to queue', class:'btn-dark', onClick:async(cl)=>{
+        const num=nextTicket();
+        await MKR.db.put('waitlist',{ num, name:U.qs('#q_n',wrap).value.trim(), phone:U.qs('#q_p',wrap).value.trim(),
+          partySize:+U.qs('#q_sz',wrap).value||1, status:'waiting', kitchenId:(MKR.auth.current()&&MKR.auth.current().kitchenId)||'k_main' });
+        cl(); U.toast(`Added · ticket #${num}`,'green'); reload();
+      }}]});
+    }
+
+    draw();
+  }
 
   // ---------- Menu & Items management ----------
   async function menuManager(c){
