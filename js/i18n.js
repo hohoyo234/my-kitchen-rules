@@ -34,6 +34,15 @@ window.MKR = window.MKR || {};
     // Refund approval
     "Manager approval":"经理审批", "Manager username":"经理用户名", "Manager password":"经理密码",
     "Approve refund":"批准退款", "Wrong manager username or password":"经理用户名或密码错误",
+    // Receipt
+    "Receipt":"小票", "🖨️ Print / Save PDF":"🖨️ 打印 / 存为 PDF", "Done":"完成",
+    "Tax invoice (indicative)":"税务发票（参考）", "Total":"合计",
+    "Cash":"现金", "Card":"刷卡", "Stored value":"储值", "Paid":"已付",
+    "Thank you — see you again!":"谢谢惠顾，欢迎再来！",
+    // CSV export
+    "⬇️ Export orders (CSV)":"⬇️ 导出订单 (CSV)", "⬇️ Export members":"⬇️ 导出会员", "⬇️ Export wages":"⬇️ 导出工资",
+    "Orders exported":"订单已导出", "Members exported":"会员已导出", "Wages exported":"工资已导出",
+    "No orders today to export":"今日无订单可导出", "No members to export":"暂无会员可导出", "No rostered shifts to export":"暂无排班可导出",
     // Customer self-service rewards (#/points)
     "⭐ My rewards":"⭐ 我的会员", "Look up my rewards":"查询我的会员权益",
     "⭐ Points":"⭐ 积分", "💰 Balance":"💰 余额", "🎟️ My coupons":"🎟️ 我的优惠券",
@@ -695,6 +704,13 @@ window.MKR = window.MKR || {};
     [/^Refund #(\w+) · approved by (.+)$/, m => `退款 #${m[1]} · 由 ${m[2]} 批准`],
     // Customer rewards greeting
     [/^Hi (.+) — here are your rewards\.$/, m => `你好 ${m[1]} —— 这是你的会员权益。`],
+    // Receipt dynamic lines
+    [/^Served by (.+)$/, m => `服务员：${m[1]}`],
+    [/^Discount (\d+)%$/, "折扣 $1%"],
+    [/^Coupon ([A-Z0-9]+)$/, "优惠券 $1"],
+    [/^Points redeemed \((\d+)\)$/, "积分抵扣（$1）"],
+    [/^⭐ (.+) · \+(\d+) pts · (\d+) pts total · Balance (.+)$/, m => `⭐ ${m[1]} · +${m[2]} 分 · 共 ${m[3]} 分 · 余额 ${m[4]}`],
+    [/^⭐ (.+) · (\d+) pts total · Balance (.+)$/, m => `⭐ ${m[1]} · 共 ${m[2]} 分 · 余额 ${m[3]}`],
     // Membership (Batch 4) templated strings
     [/^Loyalty points, stored value and e-coupons — plus repurchase & combo analysis\. (.+) pt \/ \$1 · 100 pts = (.+)\.$/,
       m => `会员积分、储值与电子优惠券 —— 含复购与搭配分析。每 $1 得 ${m[1]} 分 · 100 分 = ${m[2]}。`],

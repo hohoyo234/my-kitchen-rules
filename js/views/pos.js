@@ -286,12 +286,15 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
           status:'cooking', paid:true, payStatus:'paid'
         };
         const saved = await MKR.db.put('orders', order);
-        if(member) await M.applyOrder(member.id, {orderId:saved.id, paid:payable, earned, redeemPoints:redeemPts, balanceUsed:order.balanceUsed, couponCode:order.couponCode});
+        let updatedMember = null;
+        if(member) updatedMember = await M.applyOrder(member.id, {orderId:saved.id, paid:payable, earned, redeemPoints:redeemPts, balanceUsed:order.balanceUsed, couponCode:order.couponCode});
         if(coupon) await M.redeemCoupon(coupon.coupon, saved.id);
         const methodLbl = method==='cash'?'cash':method==='card'?'card':'balance';
         await MKR.audit.log({action:'order.create', desc:`Order #${saved.id.slice(-4)}${tableNo?' · table '+tableNo:''} · ${methodLbl}${member?' · '+member.name:''}`, amount:payable, target:saved.id});
         U.toast(`Took ${U.money(payable)} · sent to kitchen${earned?` · +${earned} pts`:''}`,'green');
+        const recv = method==='cash' ? (+U.qs('#recv',wrap).value||0) : 0;
         close(); onPaid();
+        receiptPrompt(saved, {member:updatedMember||member, earned, redeemPts, couponDisc:couponDisc(), redeemValue:redeemValue(), method, methodLbl, cash:recv});
       }}
     ]});
 
@@ -304,6 +307,43 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
 
     // load loyalty config, then first paint
     (async()=>{ try{ cfg=await M.config(); }catch(e){} refresh(); })();
+  }
+
+  // ---------- Receipt ----------
+  async function buildReceipt(order, info){
+    const brand = await MKR.db.meta('brand');
+    const shop = (brand && brand.name) || 'My Kitchen';
+    const i = info || {};
+    const line = (l)=>`<div class="rc-row"><span>${i_qty(l)}× ${U.esc(l.nm)}${l.note?` <i>(${U.esc(l.note)})</i>`:''}</span><span>${U.money(l.price*l.qty)}</span></div>`;
+    function i_qty(l){ return l.qty; }
+    const sub = (order.items||[]).reduce((s,l)=>s+l.price*l.qty,0);
+    const rows = [];
+    rows.push(`<div class="rc-row"><span>Subtotal</span><span>${U.money(sub)}</span></div>`);
+    if(order.discountPct) rows.push(`<div class="rc-row"><span>Discount ${order.discountPct}%</span><span>−${U.money(sub*order.discountPct/100)}</span></div>`);
+    if(i.couponDisc) rows.push(`<div class="rc-row"><span>Coupon ${U.esc(order.couponCode||'')}</span><span>−${U.money(i.couponDisc)}</span></div>`);
+    if(i.redeemValue) rows.push(`<div class="rc-row"><span>Points redeemed (${i.redeemPts})</span><span>−${U.money(i.redeemValue)}</span></div>`);
+    const methodMap = {cash:'Cash', card:'Card', balance:'Stored value'};
+    return `<div class="receipt">
+      <div class="rc-head"><b>${U.esc(shop)}</b><div class="rc-sub">Tax invoice (indicative)</div></div>
+      <div class="rc-meta">#${order.id.slice(-6)} · ${U.fmtDateTime(order.createdAt||Date.now())}${order.table?` · Table ${U.esc(order.table)}`:''}${order.server?`<br>Served by ${U.esc(order.server)}`:''}</div>
+      <div class="rc-items">${(order.items||[]).map(line).join('')}</div>
+      <div class="rc-tot">${rows.join('')}
+        <div class="rc-row rc-grand"><span>Total</span><span>${U.money(order.total)}</span></div>
+        <div class="rc-row"><span>${methodMap[i.method]||'Paid'}</span><span>${i.method==='cash'&&i.cash?U.money(i.cash):U.money(order.total)}</span></div>
+        ${i.method==='cash'&&i.cash>order.total?`<div class="rc-row"><span>Change</span><span>${U.money(i.cash-order.total)}</span></div>`:''}
+      </div>
+      ${i.member?`<div class="rc-member">⭐ ${U.esc(i.member.name)} · ${i.earned?`+${i.earned} pts · `:''}${i.member.points||0} pts total · Balance ${U.money(i.member.balance||0)}</div>`:''}
+      <div class="rc-foot">Thank you — see you again!</div>
+    </div>`;
+  }
+
+  async function receiptPrompt(order, info){
+    const html = await buildReceipt(order, info);
+    const wrap = U.el(`<div>${html}</div>`);
+    U.modal('Receipt', wrap, {actions:[
+      {label:'🖨️ Print / Save PDF', class:'btn-dark', onClick:(c)=>{ U.printHTML(html); }},
+      {label:'Done', class:'btn-ghost', onClick:(c)=>c()}
+    ]});
   }
 
   // ---------- Cash count: opening float (pre-open) or closing reconciliation ----------

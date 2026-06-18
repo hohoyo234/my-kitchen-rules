@@ -65,6 +65,33 @@ window.MKR = window.MKR || {};
     return { close, el:m, body:bodyEl };
   };
 
+  // CSV helpers — build a CSV string from rows (array of arrays) and trigger a
+  // browser download. A UTF-8 BOM is prepended so Excel opens Chinese correctly.
+  U.csv = (rows)=> rows.map(r=>r.map(cell=>{
+    const s = String(cell==null?'':cell);
+    return /[",\n\r]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  }).join(',')).join('\r\n');
+  U.download = (filename, text, mime='text/csv;charset=utf-8')=>{
+    const blob = new Blob(['﻿'+text], {type:mime});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  };
+  U.downloadCSV = (filename, rows)=> U.download(filename, U.csv(rows));
+
+  // Print an HTML fragment on its own (used for receipts). Isolates the node in
+  // a print-only layer so the rest of the app is hidden while printing.
+  U.printHTML = (html)=>{
+    let area = U.qs('#print-area');
+    if(!area){ area = U.el('<div id="print-area"></div>'); document.body.appendChild(area); }
+    area.innerHTML = html;
+    try{ if(MKR.i18n && MKR.i18n.apply) MKR.i18n.apply(area); }catch(e){}  // translate before printing
+    const after = ()=>{ area.innerHTML=''; window.removeEventListener('afterprint', after); };
+    window.addEventListener('afterprint', after);
+    window.print();
+  };
+
   // simple confirm
   U.confirm = (title, msg, opts={})=> new Promise(res=>{
     U.modal(title, `<p class="muted">${U.esc(msg)}</p>`, { actions:[

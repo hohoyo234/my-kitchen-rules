@@ -584,7 +584,8 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
 
     c.innerHTML = `
       <div class="section-head"><div><h2>Membership</h2><p>Loyalty points, stored value and e-coupons — plus repurchase & combo analysis. ${cfg.pointsPerDollar} pt / $1 · 100 pts = ${U.money(100*cfg.centsPerPoint/100)}.</p></div>
-        <button class="btn btn-ghost btn-sm" id="loyCfg">⚙️ Loyalty settings</button></div>
+        <div class="row gap8 wrap"><button class="btn btn-ghost btn-sm" id="expMembers">⬇️ Export members</button>
+        <button class="btn btn-ghost btn-sm" id="loyCfg">⚙️ Loyalty settings</button></div></div>
 
       <div class="grid g4 mt8">
         <div class="card stat"><div class="k">🪪 Members</div><div class="v">${members.length}</div></div>
@@ -657,6 +658,13 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
 
     U.qs('#loyCfg',c).onclick=loyaltyModal;
     U.qs('#issueCpn',c).onclick=()=>couponModal();
+    U.qs('#expMembers',c).onclick=()=>{
+      if(!members.length){ U.toast('No members to export','amber'); return; }
+      const rows=[['Code','Name','Phone','Points','Balance','Visits','Total spent','Joined']];
+      members.forEach(m=>rows.push([m.id, m.name||'', m.phone||'', m.points||0, (Number(m.balance)||0).toFixed(2), m.visits||0, (Number(m.spent)||0).toFixed(2), m.createdAt?U.fmtDate(m.createdAt):'']));
+      U.downloadCSV(`members-${U.todayISO()}.csv`, rows);
+      U.toast('Members exported','green');
+    };
 
     // ----- loyalty settings -----
     function loyaltyModal(){
@@ -742,7 +750,8 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const m = await metrics();
     const line = `Today's revenue ${U.money(m.revenue)} across ${m.count} orders; cash variance ${m.variance==null?'not reconciled':(m.variance>=0?'+':'')+U.money(m.variance)}; tomorrow 8 bookings.`;
     c.innerHTML = `
-      <div class="section-head"><div><h2>Daily smart report</h2><p>Auto-pushed at close — the whole picture without logging in</p></div></div>
+      <div class="section-head"><div><h2>Daily smart report</h2><p>Auto-pushed at close — the whole picture without logging in</p></div>
+        <button class="btn btn-ghost btn-sm" id="expOrders">⬇️ Export orders (CSV)</button></div>
       <div class="card" style="padding:26px;max-width:560px">
         <div class="row center gap8" style="margin-bottom:14px"><div class="ava" style="width:42px;height:42px;border-radius:12px;background:var(--ink);color:var(--paper);display:grid;place-items:center">📩</div><div><b>My Kitchen manager</b><div class="faint" style="font-size:12px">${U.fmtDateTime(Date.now())} · closing push</div></div></div>
         <div style="background:var(--paper-2);border-radius:16px;padding:18px;font-size:16px;line-height:1.7">${line}</div>
@@ -754,6 +763,20 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         <button class="btn btn-dark btn-block mt16" id="push">📲 Re-push to my phone</button>
       </div>`;
     U.qs('#push',c).onclick=()=>U.toast('Report pushed (demo — not actually sent)','green');
+    U.qs('#expOrders',c).onclick=async()=>{
+      const today=U.todayISO();
+      const orders=(await MKR.db.getAll('orders')).filter(o=>new Date(o.createdAt).toISOString().slice(0,10)===today).sort((a,b)=>a.createdAt-b.createdAt);
+      if(!orders.length){ U.toast('No orders today to export','amber'); return; }
+      const rows=[['Order','Time','Server','Table','Items','Method','Member','Discount','Coupon','Points used','Total']];
+      orders.forEach(o=>rows.push([
+        '#'+o.id.slice(-6), U.fmtDateTime(o.createdAt), o.server||'', o.table||'',
+        (o.items||[]).map(l=>`${l.qty}x ${l.nm}`).join('; '),
+        o.method||'', o.memberName||'', o.discountPct?o.discountPct+'%':'',
+        o.couponCode||'', o.pointsRedeemed||0, (Number(o.total)||0).toFixed(2)
+      ]));
+      U.downloadCSV(`orders-${today}.csv`, rows);
+      U.toast('Orders exported','green');
+    };
   }
 
   // ---------- Alerts ----------
@@ -801,7 +824,8 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
 
     c.innerHTML=`
       <div class="section-head"><div><h2>Labor cost approval</h2><p>Forecasts next week's revenue and labor ratio; auto-flags overruns in red</p></div>
-        <button class="btn btn-ghost btn-sm" id="payRatesBtn">⚙️ Pay rates</button></div>
+        <div class="row gap8 wrap"><button class="btn btn-ghost btn-sm" id="expWages">⬇️ Export wages</button>
+        <button class="btn btn-ghost btn-sm" id="payRatesBtn">⚙️ Pay rates</button></div></div>
       <div class="grid g3" style="margin-bottom:18px">
         <div class="card stat"><div class="k">Forecast revenue (next week)</div><div class="v">${U.money0(fc)}</div></div>
         <div class="card stat"><div class="k">Rostered wages (ref.)</div><div class="v">${U.money0(wage)}</div></div>
@@ -820,6 +844,19 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     if(ap) ap.onclick=async()=>{ await MKR.db.meta('laborApproved',Date.now()); await MKR.audit.log({action:'labor.approve',desc:`Approved this week's roster · ratio ${U.round2(pct*100).toFixed(2)}%`,amount:wage}); U.toast('Approved','green'); labor(c); };
     if(rj) rj.onclick=async()=>{ await MKR.audit.log({action:'labor.reject',desc:'Rejected roster · requested changes'}); U.toast('Rejected — the manager has been notified','amber'); };
     U.qs('#payRatesBtn',c).onclick=()=>payRatesModal(()=>labor(c));
+    U.qs('#expWages',c).onclick=()=>{
+      const rows=[['Staff','Employment','Day','Shift','Hours','Pay (indicative)']];
+      let any=false;
+      shifts.slice().sort((a,b)=>String(a.day).localeCompare(String(b.day))).forEach(s=>{
+        const st=staffOf(s.staffId); const p=MKR.pay.shiftPay(st,s,MKR.seed.dayTs(s.day));
+        rows.push([st.name||'?', st.employment||'', s.day||'', `${s.start||''}-${s.end||''}`, (p.hours!=null?p.hours:'' ), (Number(p.pay)||0).toFixed(2)]);
+        any=true;
+      });
+      if(!any){ U.toast('No rostered shifts to export','amber'); return; }
+      rows.push(['','','','','Total', (Number(wage)||0).toFixed(2)]);
+      U.downloadCSV(`wages-${U.todayISO()}.csv`, rows);
+      U.toast('Wages exported','green');
+    };
   }
 
   // ---------- Owner-configurable pay rates (award multipliers + junior tiers) ----------
