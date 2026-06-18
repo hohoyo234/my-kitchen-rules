@@ -249,6 +249,37 @@ window.MKR = window.MKR || {};
     if(hide) close();
   }
 
+  // A compact, privacy-aware snapshot of live venue data, sent with free-form
+  // questions so the assistant can answer "how's today going?" etc. Owners and
+  // managers get venue aggregates; staff get only their own roster summary.
+  async function snapshot(){
+    const s = MKR.auth && MKR.auth.current && MKR.auth.current(); if(!s) return '';
+    const role = s.role, today = U.todayISO(), lines = [];
+    try{
+      if(role==='owner' || role==='manager'){
+        const orders=(await MKR.db.getAll('orders')).filter(o=>new Date(o.createdAt).toISOString().slice(0,10)===today && o.status!=='cancelled' && o.status!=='refunded');
+        const rev=orders.reduce((t,o)=>t+(o.total||0),0);
+        lines.push(`Today so far: revenue ${U.money(rev)} across ${orders.length} orders.`);
+        const cnt={}; orders.forEach(o=>(o.items||[]).forEach(it=>{ cnt[it.nm]=(cnt[it.nm]||0)+(it.qty||1); }));
+        const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n,q])=>`${n} (${q})`);
+        if(top.length) lines.push(`Top sellers today: ${top.join(', ')}.`);
+        const staff=(await MKR.db.getAll('users')).filter(u=>u.role!=='owner' && !u.offboarded);
+        lines.push(`Team: ${staff.filter(u=>u.role==='staff').length} staff, ${staff.filter(u=>u.role==='manager').length} managers.`);
+        const so=(await MKR.db.getAll('menu')).filter(m=>m.soldOut).map(m=>m.nm);
+        if(so.length) lines.push(`Sold out right now: ${so.join(', ')}.`);
+        try{ const q=(await MKR.db.getAll('waitlist')).filter(x=>x.status==='waiting'||x.status==='called').length;
+          const bk=(await MKR.db.getAll('reservations')).filter(r=>r.status==='booked' && r.date>=today).length;
+          lines.push(`${q} parties waiting, ${bk} upcoming bookings.`); }catch(e){}
+        try{ const mem=(await MKR.db.getAll('members')).length; if(mem) lines.push(`${mem} loyalty members.`); }catch(e){}
+      } else if(role==='staff'){
+        const shifts=(await MKR.db.getAll('shifts')).filter(x=>x.staffId===s.id);
+        const hrs=U.round2(shifts.reduce((t,x)=>t+MKR.pay.hours(x.start,x.end),0));
+        lines.push(`This week you have ${shifts.length} shifts, ${U.hrs(hrs)} total.`);
+      }
+    }catch(e){}
+    return lines.join(' ').slice(0,900);
+  }
+
   // Free-form questions route here when nothing in the knowledge base matches.
   // Calls the Supabase Edge Function `ai-assistant` (which holds the Claude API
   // key server-side). Returns null on any failure → answer() shows its fallback.
@@ -257,10 +288,11 @@ window.MKR = window.MKR || {};
       if(!MKR.supa || !MKR.supa.client || !MKR.supa.URL) return null;
       let token=''; try{ const {data}=await MKR.supa.client.auth.getSession(); token=(data&&data.session&&data.session.access_token)||''; }catch(e){}
       const lang = (MKR.i18n && MKR.i18n.lang) || 'en';
+      const context = await snapshot();
       const res = await fetch(`${MKR.supa.URL}/functions/v1/ai-assistant`, {
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'apikey':MKR.supa.ANON, ...(token?{Authorization:'Bearer '+token}:{}) },
-        body: JSON.stringify({ question, role:(ctx&&ctx.role)||null, lang })
+        body: JSON.stringify({ question, role:(ctx&&ctx.role)||null, lang, context })
       });
       if(!res.ok) return null;
       const out = await res.json().catch(()=>null);

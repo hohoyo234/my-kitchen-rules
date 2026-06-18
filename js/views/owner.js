@@ -802,14 +802,21 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const logs=await MKR.audit.all();
     c.innerHTML=`<div class="section-head"><div><h2>Sensitive-action audit</h2><p>Edits / cancels / discounts / refunds fully tracked · append-only, tamper-proof</p></div>
       <span class="pill ghost">🔒 Append-only · ${logs.length} entries</span></div>
-      <div class="card" style="padding:8px 18px"><div class="list">
-      ${logs.length? logs.map(l=>`<div class="li"><div class="ava">${iconOf(l.action)}</div>
+      <div class="card" style="padding:14px 18px;margin-bottom:14px"><input class="input" id="auditSearch" placeholder="Search actions, people, details…"></div>
+      <div class="card" style="padding:8px 18px"><div class="list" id="auditList"></div></div>
+      <div class="disclaimer mt16"><span>🔒</span>The audit log is append-only — there is no delete or edit path anywhere in the system.</div>`;
+    function iconOf(a){ return ({'order.refund':'↩️','order.discount':'🏷️','order.cancel':'✖️','order.create':'🧾','pay.blinddrop':'🥁','staff.offboard':'🔒','staff.hire':'➕','tfn.view':'🪪','login':'🔑','shift.create':'📅','shift.remove':'🗑️','sos.post':'🆘','labor.approve':'✅','labor.reject':'⛔','swap.approve':'🔁','menu.add':'🍔','menu.edit':'🍔','menu.remove':'🗑️','menu.soldout':'⛔','settings.update':'⚙️','kitchen.create':'🏢','kitchen.approve':'✅','booking.create':'📅','booking.update':'📖','member.create':'🪪','member.topup':'💰','member.points':'⭐','coupon.issue':'🎟️','reward':'🎁'})[a]||'•'; }
+    const list=U.qs('#auditList',c);
+    function draw(q){
+      const ql=(q||'').trim().toLowerCase();
+      const rows=logs.filter(l=>!ql || (MKR.audit.label(l.action)+' '+(l.desc||'')+' '+(l.actor||'')).toLowerCase().includes(ql));
+      list.innerHTML = rows.length? rows.map(l=>`<div class="li"><div class="ava">${iconOf(l.action)}</div>
         <div class="meta"><b>${MKR.audit.label(l.action)}${l.amount!=null?' · '+U.money(l.amount):''}</b><span>${U.esc(l.desc||'')}</span></div>
         <div style="text-align:right"><div style="font-size:13px;font-weight:600">${U.esc(l.actor||'System')}</div><div class="faint" style="font-size:11.5px">${U.fmtDateTime(l.ts)}</div></div></div>`).join('')
-        : '<div class="empty"><div class="em">🗂️</div><p>No actions recorded yet</p></div>'}
-      </div></div>
-      <div class="disclaimer mt16"><span>🔒</span>The audit log is append-only — there is no delete or edit path anywhere in the system.</div>`;
-    function iconOf(a){ return ({'order.refund':'↩️','order.discount':'🏷️','order.cancel':'✖️','order.create':'🧾','pay.blinddrop':'🥁','staff.offboard':'🔒','staff.hire':'➕','tfn.view':'🪪','login':'🔑','shift.create':'📅','shift.remove':'🗑️','sos.post':'🆘','labor.approve':'✅','labor.reject':'⛔','swap.approve':'🔁','menu.add':'🍔','menu.edit':'🍔','menu.remove':'🗑️','settings.update':'⚙️','kitchen.create':'🏢','kitchen.approve':'✅'})[a]||'•'; }
+        : `<div class="empty"><div class="em">🗂️</div><p>${ql?'No matching actions':'No actions recorded yet'}</p></div>`;
+    }
+    draw('');
+    U.qs('#auditSearch',c).oninput=(e)=>draw(e.target.value);
   }
 
   // ---------- Labor cost approval ----------

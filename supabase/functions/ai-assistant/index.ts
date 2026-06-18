@@ -35,15 +35,16 @@ Deno.serve(async (req) => {
   if (!question) return json({ error: 'empty question' }, 400);
   const role = ['owner', 'manager', 'staff', 'superadmin'].includes(p.role) ? p.role : 'a user';
   const lang = p.lang === 'zh' ? '简体中文' : 'English';
+  const context = String(p.context || '').slice(0, 1200).trim();
 
   const system = `You are the in-app help assistant for My Kitchen Rules. You are talking to a ${role}.
 ${APP_OVERVIEW}
-
+${context ? `\nLive snapshot of THIS venue's data right now (current and accurate — use it to answer questions about their own numbers):\n${context}\n` : ''}
 Rules:
 - Answer in ${lang}.
 - Be concise and practical — usually 1-4 sentences. Use simple steps when explaining how to do something.
 - Help with using the app and with general small-restaurant operations questions (rostering, compliance, cash handling, menus, staffing, marketing ideas).
-- You do NOT have access to this venue's live data (revenue, specific staff, etc.). If asked for their own numbers, tell them which screen to open instead of inventing figures.
+- ${context ? `Use the live snapshot above for questions about their figures (today's revenue, top sellers, who's on, queue, bookings, members). If a specific number they ask for isn't in the snapshot, tell them which screen to open rather than inventing it.` : `You do NOT have access to this venue's live data; if asked for their own numbers, tell them which screen to open instead of inventing figures.`}
 - This is an indicative tool, not legal/tax/financial advice; say so briefly when relevant.
 - If a question is unrelated to the app or running a restaurant, answer briefly and steer back.`;
 

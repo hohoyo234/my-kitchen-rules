@@ -44,6 +44,11 @@ window.MKR = window.MKR || {};
     "Name (optional)":"姓名（可选）", "Walk-in name":"到店客人姓名", "Optional · for SMS":"可选 · 用于短信",
     "Booking added":"预订已添加", "Called":"已叫号", "Seated":"已入座", "Removed from queue":"已移出排队",
     "Seated booking":"已为预订入座", "Marked no-show":"已标记未到", "Cancelled booking":"已取消预订",
+    // Audit search
+    "Search actions, people, details…":"搜索操作、人员、详情…", "No matching actions":"无匹配的操作", "No actions recorded yet":"暂无操作记录",
+    // Audit action labels (new)
+    "Sold-out change":"沽清调整", "Booking update":"预订更新", "New member":"新会员",
+    "Member top-up":"会员充值", "Adjust points":"调整积分", "Issue coupon":"发放优惠券", "Staff reward":"员工奖励",
     // Refund approval
     "Manager approval":"经理审批", "Manager username":"经理用户名", "Manager password":"经理密码",
     "Approve refund":"批准退款", "Wrong manager username or password":"经理用户名或密码错误",
