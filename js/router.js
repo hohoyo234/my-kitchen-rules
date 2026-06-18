@@ -15,6 +15,8 @@ window.MKR = window.MKR || {};
 
     // Public customer route (no login): #/order/<table>
     if(role==='order'){ return MKR.customer.render(root, section); }
+    // Public customer self-service rewards (no login): #/points
+    if(role==='points'){ return MKR.points.render(root); }
     // Public manager/staff join-by-link route: #/join/<kitchenId>
     if(role==='join'){ return MKR.join.render(root, section); }
 

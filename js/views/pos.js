@@ -64,11 +64,11 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
         const items = menu.filter(m=>cat==='*'||m.cat===cat);
         if(!items.length){ grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="em">🍽️</div><p>No items yet — add dishes in Menu & Items</p></div>`; return; }
         grid.innerHTML = items.map(m=>`
-          <button class="menu-item${m.img?' has-img':''}" data-id="${m.id}">
+          <button class="menu-item${m.img?' has-img':''}${m.soldOut?' is-soldout':''}" data-id="${m.id}"${m.soldOut?' disabled':''}>
             ${m.img?`<img class="mi-img" src="${m.img}" alt="${U.esc(m.nm)}">`:''}
-            <span class="nm">${U.esc(m.nm)}</span><span class="pr">${U.money(m.price)}</span>
+            <span class="nm">${U.esc(m.nm)}</span><span class="pr">${m.soldOut?'Sold out':U.money(m.price)}</span>
           </button>`).join('');
-        U.qsa('.menu-item',grid).forEach(b=> b.onclick=()=>addItem(b.dataset.id));
+        U.qsa('.menu-item',grid).forEach(b=> b.onclick=()=>{ if(b.disabled) return; addItem(b.dataset.id); });
       }
       U.qsa('#cats button',container).forEach(b=> b.onclick=()=>{
         U.qsa('#cats button',container).forEach(x=>x.classList.remove('active'));
@@ -400,12 +400,42 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
     const m = U.modal('Today\'s orders', body);
     U.qsa('[data-refund]',body).forEach(b=>b.onclick=async()=>{
       const o = orders.find(x=>x.id===b.dataset.refund);
-      if(await U.confirm('Confirm refund',`Refund order #${o.id.slice(-4)} (${U.money(o.total)})? It will be written to the audit log.`,{ok:'Confirm refund',danger:true})){
-        await MKR.db.put('orders',{id:o.id, status:'refunded'});
-        await MKR.audit.log({action:'order.refund', desc:`Refund #${o.id.slice(-4)}`, amount:o.total, target:o.id});
-        await MKR.db.put('alerts',{type:'refund', level:'amber', title:'Order refunded', desc:`#${o.id.slice(-4)} refunded ${U.money(o.total)}`, read:false, ts:Date.now()});
-        m.close(); U.toast('Refunded and logged','amber'); ordersModal();
-      }
+      const authBy = await authorizeRefund(o);
+      if(!authBy) return;
+      await MKR.db.put('orders',{id:o.id, status:'refunded'});
+      await MKR.audit.log({action:'order.refund', desc:`Refund #${o.id.slice(-4)} · approved by ${authBy}`, amount:o.total, target:o.id});
+      await MKR.db.put('alerts',{type:'refund', level:'amber', title:'Order refunded', desc:`#${o.id.slice(-4)} refunded ${U.money(o.total)} · approved by ${authBy}`, read:false, ts:Date.now()});
+      m.close(); U.toast('Refunded and logged','amber'); ordersModal();
+    });
+  }
+
+  // Refunds move money, so they need a manager/owner. A manager/owner confirms
+  // it themselves; a staff member must get a manager to enter their password.
+  // Returns the authorizer's name, or null if cancelled / not authorized.
+  async function authorizeRefund(o){
+    const cur = MKR.auth.current() || {};
+    if(['manager','owner','superadmin'].includes(cur.role)){
+      const ok = await U.confirm('Confirm refund', `Refund order #${o.id.slice(-4)} (${U.money(o.total)})? It will be written to the audit log.`, {ok:'Confirm refund', danger:true});
+      return ok ? (cur.name||'Manager') : null;
+    }
+    return new Promise(res=>{
+      const wrap = U.el(`<div>
+        <div class="alert info"><span>🔐</span><div>Refunds need a manager's approval. Ask a manager to sign off on refunding #${o.id.slice(-4)} (${U.money(o.total)}).</div></div>
+        <div class="field"><label>Manager username</label><input class="input" id="ra_u" autocomplete="off"></div>
+        <div class="field"><label>Manager password</label><input class="input" id="ra_p" type="password" autocomplete="off"></div>
+      </div>`);
+      const mm = U.modal('Manager approval', wrap, {actions:[
+        {label:'Cancel', class:'btn-ghost', onClick:(c)=>{ c(); res(null); }},
+        {label:'Approve refund', class:'btn-danger', onClick:async()=>{
+          const u=U.qs('#ra_u',wrap).value.trim().toLowerCase(), p=U.qs('#ra_p',wrap).value;
+          const users = await MKR.db.getAll('users');
+          const mgr = users.find(x=>x.pw && x.pw===p && ['manager','owner'].includes(x.role) && !x.offboarded
+            && ((x.username||'').toLowerCase()===u || (x.email||'').toLowerCase()===u));
+          if(mgr){ mm.close(); res(mgr.name); return; }
+          U.toast('Wrong manager username or password','red');
+        }}
+      ]});
+      setTimeout(()=>{ const f=U.qs('#ra_u',wrap); if(f) f.focus(); },50);
     });
   }
 })();

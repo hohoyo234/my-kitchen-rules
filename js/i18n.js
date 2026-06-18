@@ -26,6 +26,21 @@ window.MKR = window.MKR || {};
     "Simple execution · shifts / clock-in / claim":"简单执行 · 班次 / 打卡 / 抢班",
     "Dashboard":"工作台", "Daily report":"每日报告", "Alerts":"提醒", "Audit log":"审计日志",
     "Labor cost":"人力成本", "Team":"团队", "Super Admin":"超级管理员", "Compliance":"合规",
+    // Mobile bottom-nav short labels
+    "Dash":"工作台", "Report":"报告", "Audit":"审计", "Labor":"人力", "Comply":"合规",
+    "Reviews":"评价", "Switch":"切换", "Settings":"设置", "Branches":"分店",
+    // Sold-out / 86
+    "⛔ Sold out":"⛔ 沽清", "↩︎ Back in stock":"↩︎ 恢复供应", "Sold out":"沽清",
+    // Refund approval
+    "Manager approval":"经理审批", "Manager username":"经理用户名", "Manager password":"经理密码",
+    "Approve refund":"批准退款", "Wrong manager username or password":"经理用户名或密码错误",
+    // Customer self-service rewards (#/points)
+    "⭐ My rewards":"⭐ 我的会员", "Look up my rewards":"查询我的会员权益",
+    "⭐ Points":"⭐ 积分", "💰 Balance":"💰 余额", "🎟️ My coupons":"🎟️ 我的优惠券",
+    "No active coupons":"暂无可用优惠券", "Looking…":"查询中…", "Not available offline":"离线不可用",
+    "This feature isn’t enabled yet — please ask staff.":"此功能尚未开启 —— 请咨询店员。",
+    "No member found for that phone or code.":"未找到该电话或编号对应的会员。",
+    "Show this screen at the counter, or give your phone number when you order.":"在柜台出示此页，或点餐时报手机号即可。",
     "Feedback":"顾客反馈", "Switch view":"切换视图", "Settings":"设置",
     "Rostering":"排班", "Add Users":"添加员工", "Menu & Items":"菜单与菜品",
     "Tasks":"任务", "Swaps / SOS":"换班 / SOS", "POS":"收银", "Kitchen":"后厨", "Table QR":"桌台二维码",
@@ -671,6 +686,15 @@ window.MKR = window.MKR || {};
     [/^(\d+) errors$/, "$1 个失误"],
     [/^· ~(\d+)m prep$/, "· 约 $1 分钟出餐"],
     [/^🎁 Reward (.+)$/, m => `🎁 奖励 ${m[1]}`],
+    // Sold-out toasts
+    [/^“(.+)” marked sold out$/, m => `“${m[1]}” 已沽清`],
+    [/^“(.+)” back in stock$/, m => `“${m[1]}” 已恢复供应`],
+    // Refund approval
+    [/^Refunds need a manager's approval\. Ask a manager to sign off on refunding #(\w+) \((.+)\)\.$/,
+      m => `退款需经理审批。请经理确认为订单 #${m[1]}（${m[2]}）退款。`],
+    [/^Refund #(\w+) · approved by (.+)$/, m => `退款 #${m[1]} · 由 ${m[2]} 批准`],
+    // Customer rewards greeting
+    [/^Hi (.+) — here are your rewards\.$/, m => `你好 ${m[1]} —— 这是你的会员权益。`],
     // Membership (Batch 4) templated strings
     [/^Loyalty points, stored value and e-coupons — plus repurchase & combo analysis\. (.+) pt \/ \$1 · 100 pts = (.+)\.$/,
       m => `会员积分、储值与电子优惠券 —— 含复购与搭配分析。每 $1 得 ${m[1]} 分 · 100 分 = ${m[2]}。`],

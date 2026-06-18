@@ -31,15 +31,16 @@ window.MKR = window.MKR || {};
         <div class="cust-wrap">
           <header class="cust-head">
             <div><div class="cust-brand">My Kitchen</div><div class="cust-table">🪑 Table ${esc(table)} · self-order</div></div>
+            <a class="btn btn-ghost btn-sm" href="#/points">⭐ My rewards</a>
           </header>
           <div class="cust-cats">
             ${['All',...cats].map(c=>`<button class="${c===activeCat?'active':''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}
           </div>
           <div class="cust-menu">
-            ${items.map(m=>`<div class="cust-item" data-id="${m.id}">
+            ${items.map(m=>`<div class="cust-item${m.soldOut?' is-soldout':''}" data-id="${m.id}">
               ${m.img?`<img class="ci-img" src="${m.img}" alt="${esc(m.nm)}">`:''}
-              <div class="ci-info"><b>${esc(m.nm)}</b><span class="ci-price">${U().money(m.price)}</span></div>
-              <button class="ci-add" data-add="${m.id}">＋</button>
+              <div class="ci-info"><b>${esc(m.nm)}</b><span class="ci-price">${m.soldOut?'Sold out':U().money(m.price)}</span></div>
+              ${m.soldOut?'<span class="ci-sold">Sold out</span>':`<button class="ci-add" data-add="${m.id}">＋</button>`}
             </div>`).join('')}
           </div>
           <div class="cust-bar" id="custBar"></div>

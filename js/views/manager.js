@@ -61,18 +61,25 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       const grid = U.qs('#mgrid',c);
       if(!menu.length){ grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="em">🍔</div><p>No dishes yet — tap “Add dish” to create your first item</p></div>`; }
       else grid.innerHTML = menu.slice().sort((a,b)=>(a.cat||'').localeCompare(b.cat||'')).map(m=>`
-        <div class="card menu-admin-card">
-          <div class="ma-thumb">${m.img?`<img src="${m.img}" alt="${U.esc(m.nm)}">`:'<span class="ma-noimg">🍽️</span>'}</div>
+        <div class="card menu-admin-card${m.soldOut?' is-soldout':''}">
+          <div class="ma-thumb">${m.img?`<img src="${m.img}" alt="${U.esc(m.nm)}">`:'<span class="ma-noimg">🍽️</span>'}${m.soldOut?'<span class="soldout-tag">Sold out</span>':''}</div>
           <div class="ma-body">
             <b>${U.esc(m.nm)}</b>
             <div class="faint" style="font-size:12px">${U.esc(m.cat||'Other')} · ${U.money(m.price)}</div>
             <div class="row gap6 mt8">
-              <button class="btn btn-ghost btn-sm grow" data-edit="${m.id}">Edit</button>
+              <button class="btn ${m.soldOut?'btn-green':'btn-ghost'} btn-sm grow" data-sold="${m.id}">${m.soldOut?'↩︎ Back in stock':'⛔ Sold out'}</button>
+              <button class="btn btn-ghost btn-sm" data-edit="${m.id}">Edit</button>
               <button class="btn btn-ghost btn-sm" data-del="${m.id}">🗑️</button>
             </div>
           </div>
         </div>`).join('');
       U.qs('#addItem',c).onclick=()=>itemModal(null);
+      U.qsa('[data-sold]',grid).forEach(b=>b.onclick=async()=>{
+        const m = menu.find(x=>x.id===b.dataset.sold); const now=!m.soldOut;
+        await MKR.db.put('menu',{id:m.id, soldOut:now});
+        await MKR.audit.log({action:'menu.soldout', desc:`${now?'Marked sold out':'Restocked'}: ${m.nm}`});
+        menu = await MKR.db.getAll('menu'); draw(); U.toast(now?`“${m.nm}” marked sold out`:`“${m.nm}” back in stock`, now?'amber':'green');
+      });
       U.qsa('[data-edit]',grid).forEach(b=>b.onclick=()=>itemModal(menu.find(m=>m.id===b.dataset.edit)));
       U.qsa('[data-del]',grid).forEach(b=>b.onclick=async()=>{
         const m = menu.find(x=>x.id===b.dataset.del);
