@@ -198,6 +198,36 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         <div class="meta"><b>System language</b><span>English / 简体中文</span></div>
         ${MKR.i18n?MKR.i18n.switcher():''}
       </div></div>
+      <div class="card pad20" style="margin-bottom:16px">
+        <div class="section-title" style="margin-top:0">📤 Data export / reports</div>
+        <p class="muted" style="font-size:13px;margin-bottom:12px">One-tap export of revenue, wages, roster or the audit log — download CSV or print to PDF.</p>
+        <div class="row gap8 wrap">
+          <div class="field" style="margin:0;min-width:170px"><label>What to export</label>
+            <select class="input" id="exType">
+              <option value="revenue">Revenue (sales)</option>
+              <option value="wages">Wages &amp; labor</option>
+              <option value="roster">Roster</option>
+              <option value="audit">Audit log</option>
+            </select></div>
+          <div class="field" style="margin:0;min-width:150px"><label>Date range</label>
+            <select class="input" id="exRange">
+              <option value="today">Today</option>
+              <option value="week" selected>This week</option>
+              <option value="month">This month</option>
+              <option value="custom">Custom…</option>
+            </select></div>
+        </div>
+        <div class="row gap8 wrap hidden" id="exCustom" style="margin-top:2px">
+          <div class="field" style="margin:0"><label>From</label><input class="input" id="exFrom" type="date"></div>
+          <div class="field" style="margin:0"><label>To</label><input class="input" id="exTo" type="date"></div>
+        </div>
+        <div class="row gap8 wrap mt12">
+          <button class="btn btn-dark btn-sm" id="exCsv">⬇️ Export CSV</button>
+          <button class="btn btn-ghost btn-sm" id="exPdf">🖨️ Print / PDF</button>
+        </div>
+        <div class="faint" id="exNote" style="font-size:11.5px;margin-top:8px"></div>
+        <div class="disclaimer mt12"><span>⚖️</span>Indicative figures for your records — this does not connect to the ATO. Send exports to your accountant to confirm.</div>
+      </div>
       <div class="card" style="padding:8px 18px"><div id="mlist"></div></div>
       <div class="disclaimer mt16"><span>ℹ️</span>Disabled features disappear from the matching portal's nav and direct access is blocked; saving applies to every device in the venue. Owner core (dashboard / audit / compliance / settings) is always available.</div>`;
     if(MKR.i18n) MKR.i18n.bindSwitchers(c);
@@ -238,6 +268,60 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         MKR.router.refresh();                                  // repaint the shell with the new logo/name
       };
     }
+
+    // ---- Data export / reports ----
+    const kid=(sess&&sess.kitchenId)||'k_main';
+    const DAYS2=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const exRange=U.qs('#exRange',c), exType=U.qs('#exType',c), exCustom=U.qs('#exCustom',c), exNote=U.qs('#exNote',c);
+    function getRange(){
+      const r=exRange.value, now=new Date(), today=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+      let from, to=today.getTime()+864e5-1, label;
+      if(r==='today'){ from=today.getTime(); label='Today'; }
+      else if(r==='month'){ from=new Date(today.getFullYear(),today.getMonth(),1).getTime(); label='This month'; }
+      else if(r==='custom'){ const f=U.qs('#exFrom',c).value, t=U.qs('#exTo',c).value; from=f?new Date(f).getTime():0; to=t?new Date(t).getTime()+864e5-1:Date.now(); label=(f||'…')+' → '+(t||'…'); }
+      else { const d=new Date(today); d.setDate(d.getDate()-((d.getDay()+6)%7)); from=d.getTime(); label='This week'; }
+      return {from,to,label};
+    }
+    function noteText(){
+      const wk = exType.value==='wages'||exType.value==='roster';
+      exNote.textContent = wk ? 'Wages & roster reflect the current week\'s roster (shifts are weekly).' : 'Revenue & audit use the selected date range.';
+    }
+    exRange.onchange=()=>{ exCustom.classList.toggle('hidden', exRange.value!=='custom'); };
+    exType.onchange=noteText; noteText();
+    async function buildExport(){
+      const type=exType.value, {from,to,label}=getRange();
+      if(type==='revenue'){
+        const o=(await MKR.db.getAll('orders')).filter(x=>x.createdAt>=from&&x.createdAt<=to&&x.paid&&x.status!=='cancelled'&&x.status!=='refunded').sort((a,b)=>a.createdAt-b.createdAt);
+        const rows=o.map(x=>[U.fmtDateTime(x.createdAt),'#'+String(x.id).slice(-4),(x.items||[]).reduce((s,i)=>s+(i.qty||1),0),x.method||'',x.server||x.by||'',(x.total||0).toFixed(2)]);
+        return {name:'revenue',label,headers:['Time','Order','Items','Method','Served by','Total AUD'],rows,footer:['','','','','Total',o.reduce((s,x)=>s+(x.total||0),0).toFixed(2)]};
+      }
+      if(type==='audit'){
+        const l=(await MKR.db.getAll('audit')).filter(x=>x.ts>=from&&x.ts<=to).sort((a,b)=>a.ts-b.ts);
+        return {name:'audit',label,headers:['Time','Action','Actor','Amount','Detail'],rows:l.map(x=>[U.fmtDateTime(x.ts),MKR.audit.label(x.action),x.actor||'System',x.amount!=null?Number(x.amount).toFixed(2):'',x.desc||''])};
+      }
+      const staff=(await MKR.db.getAll('users')).filter(u=>(u.kitchenId||'k_main')===kid&&u.role!=='owner'&&!u.offboarded);
+      const shifts=(await MKR.db.getAll('shifts')).filter(s=>staff.some(u=>u.id===s.staffId));
+      if(type==='roster'){
+        const rows=shifts.slice().sort((a,b)=>a.day-b.day||a.start.localeCompare(b.start)).map(s=>{ const u=staff.find(x=>x.id===s.staffId)||{}; return [DAYS2[s.day],U.fmtDate(MKR.seed.dayTs(s.day)),u.name||s.staffId,s.start,s.end,U.round2(MKR.pay.hours(s.start,s.end)).toFixed(2)]; });
+        return {name:'roster',label:'Current week',headers:['Day','Date','Staff','Start','End','Hours'],rows};
+      }
+      let tot=0; const rows=staff.map(u=>{ const ss=shifts.filter(x=>x.staffId===u.id); const h=U.round2(ss.reduce((t,x)=>t+MKR.pay.hours(x.start,x.end),0)); const pay=ss.reduce((t,x)=>t+MKR.pay.shiftPay(u,x,MKR.seed.dayTs(x.day)).pay,0); tot+=pay; return [u.name,MKR.auth.roleName(u.role),ss.length,h.toFixed(2),pay.toFixed(2)]; }).filter(r=>r[2]>0);
+      return {name:'wages',label:'Current week',headers:['Staff','Role','Shifts','Hours','Est. pay AUD'],rows,footer:['','','','Total',tot.toFixed(2)]};
+    }
+    function toCSV(d){ const esc=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`; const all=[d.headers,...d.rows]; if(d.footer) all.push(d.footer); return all.map(r=>r.map(esc).join(',')).join('\n'); }
+    function toHTML(d){ const e=U.esc, name=(kitchen&&kitchen.name)||'My Kitchen';
+      return `<div style="font-family:Inter,system-ui,sans-serif;padding:24px;color:#211E1B">
+        <h2 style="margin:0 0 2px">${e(name)} — ${e(d.name)} report</h2>
+        <p style="color:#6F655B;font-size:13px;margin:0 0 14px">${e(d.label)} · generated ${e(U.fmtDateTime(Date.now()))}</p>
+        ${d.rows.length?`<table cellspacing="0" cellpadding="7" style="border-collapse:collapse;width:100%;font-size:13px">
+          <thead><tr>${d.headers.map(h=>`<th align="left" style="border-bottom:2px solid #211E1B;padding:7px">${e(h)}</th>`).join('')}</tr></thead>
+          <tbody>${d.rows.map(r=>`<tr>${r.map(c2=>`<td style="border-bottom:1px solid #ddd;padding:7px">${e(c2)}</td>`).join('')}</tr>`).join('')}
+          ${d.footer?`<tr>${d.footer.map(c2=>`<td style="border-top:2px solid #211E1B;padding:7px;font-weight:700">${e(c2)}</td>`).join('')}</tr>`:''}</tbody></table>`
+          :'<p>No data for this range.</p>'}
+        <p style="font-size:11px;color:#9A8F84;margin-top:18px">Indicative figures for your records. This system does not connect to the ATO or give tax advice.</p></div>`;
+    }
+    U.qs('#exCsv',c).onclick=async()=>{ const d=await buildExport(); if(!d.rows.length){ U.toast('Nothing to export for that range','amber'); return; } U.download(`${d.name}-${U.todayISO()}.csv`, toCSV(d)); await MKR.audit.log({action:'export',desc:`Exported ${d.name} (${d.label})`}); U.toast('CSV exported','green'); };
+    U.qs('#exPdf',c).onclick=async()=>{ const d=await buildExport(); U.printHTML(toHTML(d)); await MKR.audit.log({action:'export',desc:`Printed ${d.name} (${d.label})`}); };
   }
 
   // ---------- Dashboard ----------
