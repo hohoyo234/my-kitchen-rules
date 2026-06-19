@@ -231,7 +231,11 @@ window.MKR = window.MKR || {};
     if(role==='staff' && (has('swap','换班','调班','顶班','换掉','someone to cover','cover my','give away') || (has('drop','请假',"can't work",'cannot work','不能上','叫经理','找经理') && has('shift','班')))){
       return await requestSwap(q);
     }
-    if((role==='owner'||role==='manager') && !mine && has('roster','schedule','shift','排班','班','rota','上班','几点')){
+    // A named teammate always wins (findTeammate excludes the caller, so "my
+    // roster" still falls through to the personal answer below). Note: we must
+    // NOT gate on `mine` here — names like "Amy" contain the substring "my",
+    // and Chinese "帮我…" contains "我", which would false-trigger the personal path.
+    if((role==='owner'||role==='manager') && has('roster','schedule','shift','排班','班','rota','上班','几点','什么时候','when')){
       const u=await findTeammate(q); if(u) return await rosterFor(u);
     }
 
