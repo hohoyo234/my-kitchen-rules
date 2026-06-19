@@ -48,6 +48,20 @@ window.MKR = window.MKR || {};
 
   function emit(t){ (emitter[t]||[]).forEach(fn=>{ try{fn();}catch(e){} }); }
 
+  // Stamp the tenant id so the cloud's Row Level Security (which scopes rows by
+  // data.kitchenId) accepts the write. Many call sites (shifts/tasks/clockins/
+  // reservations/…) don't set it; without this they'd be rejected and pile up in
+  // the outbox. 'kitchens' is keyed by its own id, not data.kitchenId, so skip it.
+  function stampTenant(t,obj){
+    try{
+      if(obj && obj.kitchenId==null && t!=='kitchens'){
+        const s=MKR.auth&&MKR.auth.current&&MKR.auth.current();
+        if(s&&s.kitchenId) obj.kitchenId=s.kitchenId;
+      }
+    }catch(e){}
+    return obj;
+  }
+
   // ---------- cloud push ----------
   async function pushUpsert(t,obj){
     if(sb() && navigator.onLine){
@@ -78,7 +92,7 @@ window.MKR = window.MKR || {};
       for(const {key,op} of items){
         let err=null;
         try{
-          if(op.type==='upsert'){ const r=await sb().from(op.t).upsert({id:op.obj.id,data:op.obj,updated_at:new Date().toISOString()}); err=r.error; }
+          if(op.type==='upsert'){ stampTenant(op.t,op.obj); const r=await sb().from(op.t).upsert({id:op.obj.id,data:op.obj,updated_at:new Date().toISOString()}); err=r.error; }
           else if(op.type==='delete'){ const r=await sb().from(op.t).delete().eq('id',op.id); err=r.error; }
           else if(op.type==='meta'){ const r=await sb().from('app_meta').upsert({key:op.k,value:op.v}); err=r.error; }
         }catch(e){ err=e; }
@@ -147,6 +161,7 @@ window.MKR = window.MKR || {};
       // Merge: when partial fields are passed, keep the record's other fields (avoid a partial update wiping the row)
       const existing = await lget(t, obj.id);
       const merged = {...(existing||{}), ...obj, updatedAt:Date.now()};
+      stampTenant(t,merged);
       await lput(t,merged); emit(t);
       pushUpsert(t,merged);
       return merged;
