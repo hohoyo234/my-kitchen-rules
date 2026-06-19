@@ -795,7 +795,9 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
   // ---------- Table QR ordering (per-table QR codes) ----------
   async function qrcodes(c){
     const base = location.origin + location.pathname;
-    const url = n => base + '#/order/' + n;
+    const kid = (MKR.auth.current()&&MKR.auth.current().kitchenId)||'k_main';
+    // Encode the venue in the QR so the order reaches THIS kitchen (RLS scopes by kitchenId).
+    const url = n => base + '#/order/' + encodeURIComponent(kid) + '/' + encodeURIComponent(n);
     let n = 12;
     function draw(){
       c.innerHTML=`

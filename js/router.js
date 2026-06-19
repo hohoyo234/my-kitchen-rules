@@ -13,8 +13,8 @@ window.MKR = window.MKR || {};
     const root = document.getElementById('root');
     let { role, section, arg } = parse();
 
-    // Public customer route (no login): #/order/<table>
-    if(role==='order'){ return MKR.customer.render(root, section); }
+    // Public customer route (no login): #/order/<kitchenId>/<table> (legacy: #/order/<table>)
+    if(role==='order'){ return MKR.customer.render(root, section, arg); }
     // Public customer self-service rewards (no login): #/points
     if(role==='points'){ return MKR.points.render(root); }
     // Public manager/staff join-by-link route: #/join/<kitchenId>

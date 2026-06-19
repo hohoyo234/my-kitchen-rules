@@ -8,8 +8,11 @@ window.MKR = window.MKR || {};
   const U = ()=>MKR.util;
   let cart = [];   // {id,nm,price,qty,note}
 
-  async function render(root, table){
-    table = decodeURIComponent(table||'').trim() || '—';
+  async function render(root, a, b){
+    // QR encodes the venue: #/order/<kitchenId>/<table>. Legacy #/order/<table> still works.
+    let kitchenId=null, table='—';
+    if(b!=null && b!==''){ kitchenId=(decodeURIComponent(a||'').trim())||null; table=decodeURIComponent(b||'').trim()||'—'; }
+    else { table=decodeURIComponent(a||'').trim()||'—'; }
     cart = [];
     root.innerHTML = `<div class="cust-wrap"><div class="empty"><div class="em">🍽️</div><p>Loading menu…</p></div></div>`;
 
@@ -18,10 +21,20 @@ window.MKR = window.MKR || {};
       const { data, error } = await MKR.supa.client.from('menu').select('id,data');
       if(!error && data) menu = data.map(r=>({id:r.id, ...r.data})).filter(m=>m.nm);
     }
+    // Single-venue fallback: infer the kitchen from the menu if the QR didn't carry it.
+    if(!kitchenId && menu.length) kitchenId = menu[0].kitchenId || 'k_main';
+    // Only show THIS venue's dishes (the anon menu read returns every kitchen's).
+    if(kitchenId) menu = menu.filter(m=>(m.kitchenId||'k_main')===kitchenId);
     if(!menu.length){
       root.innerHTML = `<div class="cust-wrap"><div class="empty"><div class="em">😕</div><p>Menu can't be loaded right now</p><p class="faint" style="font-size:13px">Please call a server or try again shortly</p></div></div>`;
       return;
     }
+    // Per-venue branding (anon can read kitchens + app_meta 'brand').
+    let brandName='My Kitchen', logo=null;
+    try{
+      if(kitchenId){ const {data}=await MKR.supa.client.from('kitchens').select('data').eq('id',kitchenId).limit(1);
+        const k=data&&data[0]&&data[0].data; if(k){ brandName=k.name||brandName; logo=k.logo||null; } }
+    }catch(e){}
     const cats = [...new Set(menu.map(m=>m.cat||'Other'))];
 
     function draw(activeCat){
@@ -30,7 +43,10 @@ window.MKR = window.MKR || {};
       root.innerHTML = `
         <div class="cust-wrap">
           <header class="cust-head">
-            <div><div class="cust-brand">My Kitchen</div><div class="cust-table">🪑 Table ${esc(table)} · self-order</div></div>
+            <div class="row center" style="gap:10px;min-width:0">
+              ${logo?`<img src="${logo}" alt="" style="width:42px;height:42px;border-radius:12px;object-fit:cover;flex:none">`:''}
+              <div style="min-width:0"><div class="cust-brand">${esc(brandName)}</div><div class="cust-table">🪑 Table ${esc(table)} · self-order</div></div>
+            </div>
             <a class="btn btn-ghost btn-sm" href="#/points">⭐ My rewards</a>
           </header>
           <div class="cust-cats">
@@ -81,7 +97,7 @@ window.MKR = window.MKR || {};
 
     async function placeOrder(){
       const order={ id:U().uid('ord'), items:cart.map(l=>({...l})), total:total(), subtotal:total(),
-        table:String(table), source:'customer', status:'cooking', paid:false, payStatus:'unpaid',
+        table:String(table), kitchenId: kitchenId||'k_main', source:'customer', status:'cooking', paid:false, payStatus:'unpaid',
         createdAt:Date.now(), updatedAt:Date.now(), ts:Date.now() };
       let ok=false;
       try{ const {error}=await MKR.supa.client.from('orders').insert({id:order.id, data:order, updated_at:new Date().toISOString()}); ok=!error; }catch(e){}

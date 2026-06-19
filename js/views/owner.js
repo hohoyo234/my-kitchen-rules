@@ -3,7 +3,10 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
 (function(){
   const U = MKR.util;
   const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  const isToday = ts => new Date(ts).toISOString().slice(0,10)===U.todayISO();
+  // Safe date→YYYY-MM-DD ('' for missing/invalid dates) — a single bad order's
+  // createdAt used to throw "Invalid time value" and crash the whole dashboard.
+  const dayOf = ts => { const d=new Date(ts); return isNaN(d.getTime()) ? '' : d.toISOString().slice(0,10); };
+  const isToday = ts => dayOf(ts)===U.todayISO();
 
   async function metrics(){
     const orders = await MKR.db.getAll('orders');
@@ -128,7 +131,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const all=await MKR.db.getAll('customer_feedback');
     const fbs=all.filter(f=>f.type==='review').sort((a,b)=>b.ts-a.ts);
     const bad=fbs.filter(f=>f.rating<=3);
-    const todayUrge=all.filter(f=>f.type==='urge' && new Date(f.ts).toISOString().slice(0,10)===U.todayISO()).length;
+    const todayUrge=all.filter(f=>f.type==='urge' && dayOf(f.ts)===U.todayISO()).length;
     const avg=fbs.length?(fbs.reduce((s,f)=>s+f.rating,0)/fbs.length).toFixed(1):'—';
     c.innerHTML=`
       <div class="section-head"><div><h2>Customer feedback</h2><p>Bad reviews kept internal (1-3★) for you to handle; 4-5★ sent to Google</p></div></div>
@@ -359,7 +362,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const today=new Date(); today.setHours(0,0,0,0);
     const days=[]; for(let i=6;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i);
       const iso=d.toISOString().slice(0,10);
-      const rev=paid.filter(o=>new Date(o.createdAt).toISOString().slice(0,10)===iso).reduce((s,o)=>s+o.total,0);
+      const rev=paid.filter(o=>dayOf(o.createdAt)===iso).reduce((s,o)=>s+o.total,0);
       days.push({label:DOW[d.getDay()], rev}); }
     const maxRev=Math.max(1,...days.map(d=>d.rev));
 
@@ -482,7 +485,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     // 14-day revenue series
     const today=new Date(); today.setHours(0,0,0,0);
     const days=[]; for(let i=13;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); const iso=d.toISOString().slice(0,10);
-      days.push({label:(d.getMonth()+1)+'/'+d.getDate(), rev:paid.filter(o=>new Date(o.createdAt).toISOString().slice(0,10)===iso).reduce((s,o)=>s+o.total,0)}); }
+      days.push({label:(d.getMonth()+1)+'/'+d.getDate(), rev:paid.filter(o=>dayOf(o.createdAt)===iso).reduce((s,o)=>s+o.total,0)}); }
     const maxRev=Math.max(1,...days.map(d=>d.rev));
 
     // sellers (last 30d)
@@ -504,7 +507,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     // best-seller trend: top-3 dishes' daily quantity over the last 14 days
     const dayKeys=[]; for(let i=13;i>=0;i--){ const d=new Date(today); d.setDate(d.getDate()-i); dayKeys.push(d.toISOString().slice(0,10)); }
     const trend = sorted.slice(0,3).map(([nm])=>{
-      const series = dayKeys.map(iso=> paid.filter(o=>new Date(o.createdAt).toISOString().slice(0,10)===iso)
+      const series = dayKeys.map(iso=> paid.filter(o=>dayOf(o.createdAt)===iso)
         .reduce((s,o)=>s+(o.items||[]).filter(it=>it.nm===nm).reduce((q,it)=>q+(it.qty||0),0),0));
       return { nm, series, mx:Math.max(1,...series) };
     });
@@ -851,7 +854,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     U.qs('#push',c).onclick=()=>U.toast('Report pushed (demo — not actually sent)','green');
     U.qs('#expOrders',c).onclick=async()=>{
       const today=U.todayISO();
-      const orders=(await MKR.db.getAll('orders')).filter(o=>new Date(o.createdAt).toISOString().slice(0,10)===today).sort((a,b)=>a.createdAt-b.createdAt);
+      const orders=(await MKR.db.getAll('orders')).filter(o=>dayOf(o.createdAt)===today).sort((a,b)=>a.createdAt-b.createdAt);
       if(!orders.length){ U.toast('No orders today to export','amber'); return; }
       const rows=[['Order','Time','Server','Table','Items','Method','Member','Discount','Coupon','Points used','Total']];
       orders.forEach(o=>rows.push([
