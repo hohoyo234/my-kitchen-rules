@@ -286,6 +286,8 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
           status:'cooking', paid:true, payStatus:'paid'
         };
         const saved = await MKR.db.put('orders', order);
+        // Deduct ingredients per dish recipe (no-op if the venue isn't using inventory)
+        try{ if(MKR.inventory) await MKR.inventory.deductForOrder(saved); }catch(e){}
         let updatedMember = null;
         if(member) updatedMember = await M.applyOrder(member.id, {orderId:saved.id, paid:payable, earned, redeemPoints:redeemPts, balanceUsed:order.balanceUsed, couponCode:order.couponCode});
         if(coupon) await M.redeemCoupon(coupon.coupon, saved.id);
