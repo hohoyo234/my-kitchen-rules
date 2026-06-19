@@ -142,11 +142,98 @@ window.MKR = window.MKR || {};
   function signIn(){ return `Please sign in first and I can pull up your personal details.`; }
   function jump(hash,label){ return `<a href="${hash}" class="ai-jump" data-jump="${hash}">${label} ›</a>`; }
 
+  // ---------- Actions: the assistant can DO things, not just answer ----------
+  // Every mutation CONFIRMS first (a chip) so a misread never silently changes
+  // data. db.put already stamps the kitchen + obeys Row Level Security.
+  let pendingAction=null;
+  function confirmCard(text){
+    return `${text}<div class="ai-chips"><button class="ai-chip" data-q="yes, do it">✅ Yes, do it</button><button class="ai-chip" data-q="cancel">Cancel</button></div>`;
+  }
+  async function runPending(){ const a=pendingAction; pendingAction=null; if(!a) return `Nothing to confirm.`;
+    try{ return await a.run(); }catch(e){ return `Sorry — that didn't go through. Please try it from the screen directly.`; } }
+
+  const DAYKW={mon:0,monday:0,'周一':0,'星期一':0,tue:1,tuesday:1,'周二':1,'星期二':1,wed:2,wednesday:2,'周三':2,'星期三':2,thu:3,thursday:3,'周四':3,'星期四':3,fri:4,friday:4,'周五':4,'星期五':4,sat:5,saturday:5,'周六':5,'星期六':5,sun:6,sunday:6,'周日':6,'星期日':6,'星期天':6};
+  function dayInText(q){ for(const k in DAYKW){ if(q.includes(k)) return DAYKW[k]; }
+    if(q.includes('tomorrow')||q.includes('明天')) return ((new Date().getDay()+6)%7+1)%7;
+    if(q.includes('today')||q.includes('今天')) return (new Date().getDay()+6)%7; return null; }
+
+  // Pull the task text out of "add a task: mop floors" / "帮我加个任务 拖地".
+  function taskNameFrom(raw){
+    let t=String(raw||'');
+    const colon=t.split(/[:：]/); if(colon.length>1 && colon.slice(1).join(':').trim()) return colon.slice(1).join(':').trim();
+    t=t.replace(/(add|create|make|new)\s+(a\s+)?(task|to-?do|todo)\b/ig,' ')
+       .replace(/(帮我|帮|请|给我)/g,' ').replace(/(加|新增|添加|新建|加个|加一个|建)\s*(一个)?\s*(任务|待办|todo|task)?/ig,' ')
+       .replace(/\b(task|任务|待办)\b/ig,' ').replace(/[\s,，。:：-]+/g,' ').trim();
+    return t;
+  }
+  async function addTask(name){
+    await MKR.db.put('tasks',{name, date:U.todayISO(), done:false, photo:null, by:null});
+    return `✅ Added today's task: <b>${U.esc(name)}</b>. ${jump('#/manager/tasks','Open tasks')}`;
+  }
+
+  // Staff: ask the manager to cover a shift (same mechanic as dropping a shift).
+  async function requestSwap(q){
+    const s=MKR.auth.current(); if(!s) return signIn();
+    const shifts=(await MKR.db.getAll('shifts')).filter(x=>x.staffId===s.id).sort((a,b)=>a.day-b.day);
+    if(!shifts.length) return `You have no shifts to swap this week. ${jump('#/staff/my','My shifts')}`;
+    const dIdx=dayInText(q);
+    let target = dIdx!=null ? shifts.find(x=>x.day===dIdx) : null;
+    if(!target){
+      if(shifts.length===1) target=shifts[0];
+      else return `Which shift should I ask your manager to cover?<div class="ai-chips">${shifts.map(x=>`<button class="ai-chip" data-q="swap my ${DAYS[x.day]} shift">${DAYS[x.day]} ${x.start}–${x.end}</button>`).join('')}</div>`;
+    }
+    const label=`${DAYS[target.day]} ${target.start}-${target.end}`;
+    pendingAction={ run: async()=>{
+      await MKR.db.put('swaps',{staffId:s.id, shiftId:target.id, label, reason:'Requested via assistant', status:'pending', ts:Date.now()});
+      await MKR.db.put('alerts',{type:'swap', level:'amber', title:'Shift swap requested', desc:`${s.name} asked to swap ${label}`, read:false, ts:Date.now()});
+      try{ if(MKR.notify&&MKR.notify.push) MKR.notify.push({role:'manager'},'🔁 Swap requested',`${s.name}: ${label}`,'swap'); }catch(e){}
+      return `✅ Done — I've asked your manager to cover <b>${label}</b>. You'll be notified once it's approved. ${jump('#/staff/swaps','View swaps')}`;
+    }};
+    return confirmCard(`I'll ask your manager to cover your <b>${label}</b> shift. Send the request?`);
+  }
+
+  // Owner / manager: look up a teammate's roster by name.
+  async function findTeammate(q){
+    const s=MKR.auth.current(); const kid=(s&&s.kitchenId)||'k_main';
+    const users=(await MKR.db.getAll('users')).filter(u=>(u.kitchenId||'k_main')===kid && !u.offboarded && u.id!==(s&&s.id));
+    for(const u of users){ const fn=norm(u.name).split(' ')[0]; if(fn.length>=2 && q.includes(fn)) return u;
+      const un=norm(u.username); if(un && un.length>=2 && q.includes(un)) return u; }
+    return null;
+  }
+  async function rosterFor(u){
+    const shifts=(await MKR.db.getAll('shifts')).filter(x=>x.staffId===u.id).sort((a,b)=>a.day-b.day||a.start.localeCompare(b.start));
+    if(!shifts.length) return `<b>${U.esc(u.name)}</b> has no shifts rostered this week. ${jump('#/manager/schedule','Open roster')}`;
+    const total=U.round2(shifts.reduce((t,x)=>t+MKR.pay.hours(x.start,x.end),0));
+    return `<b>${U.esc(u.name)}</b>'s shifts this week (${U.hrs(total)} total):<br>${shifts.map(x=>`• ${DAYS[x.day]} ${x.start}–${x.end}`).join('<br>')} ${jump('#/manager/schedule','Open roster')}`;
+  }
+
   // ---------- Intent routing ----------
   async function answer(qRaw){
     const q=norm(qRaw);
     const has=(...arr)=>arr.some(w=>q.includes(w));
     const mine = has('my','mine','我的','我','i ',"i'm",'am i','do i');
+    const role=roleOf();
+
+    // resolve a pending confirmation typed as plain text (instead of the chip)
+    if(pendingAction){
+      if(has('yes','confirm','do it','go ahead','sure','please do','是','确认','好','可以','对','行')) return await runPending();
+      if(has('no','cancel',"don't",'nope','取消','算了','不要','不用','别')){ pendingAction=null; return `Okay — cancelled, nothing changed.`; }
+    }
+
+    // ----- Actions (DO things) — checked before read intents so e.g.
+    //       "帮我加个任务拖地" creates a task instead of listing my tasks. -----
+    if((role==='owner'||role==='manager') && has('add','create','new','加','新增','添加','新建','建个','建一个') && has('task','任务','待办','to-do','todo')){
+      const name=taskNameFrom(qRaw);
+      if(!name) return `Sure — what should today's task say? Try “add task: mop the floor”.`;
+      pendingAction={ run:()=>addTask(name) };
+      return confirmCard(`Add today's task: <b>${U.esc(name)}</b>?`);
+    }
+    if(role==='staff' && (has('swap','换班','调班','顶班','换掉','someone to cover','cover my','give away') || (has('drop','请假',"can't work",'cannot work','不能上','叫经理','找经理') && has('shift','班')))){
+      return await requestSwap(q);
+    }
+    if((role==='owner'||role==='manager') && !mine && has('roster','schedule','shift','排班','班','rota','上班','几点')){
+      const u=await findTeammate(q); if(u) return await rosterFor(u);
+    }
 
     // personal intents first
     if(has('tfn','税号','tax file')) return await myProfileInfo('tfn');
@@ -160,7 +247,6 @@ window.MKR = window.MKR || {};
     if(has('my task','my tasks','我的任务') || (mine && has('task','任务'))) return await myTasks();
 
     // owner / manager aggregates
-    const role=roleOf();
     if((role==='owner'||role==='manager') && has('how many staff','how many people','staff count','员工总数','多少员工','多少人')) return await staffCount();
     if((role==='owner'||role==='manager') && has('revenue','sales','takings','营业额','today\'s revenue','营收')) return await todayRevenue();
     if(role==='owner' && has('branch','分店','my branches')) return await myBranches();
