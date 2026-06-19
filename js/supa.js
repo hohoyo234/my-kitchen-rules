@@ -7,7 +7,7 @@ window.MKR = window.MKR || {};
   const URL  = 'https://gopluilwaltawempixeg.supabase.co';
   const ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvcGx1aWx3YWx0YXdlbXBpeGVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODEwMzAsImV4cCI6MjA5Njk1NzAzMH0.hTH-YuxWjPKmJukq4hBo4NySMuxsRV7yWs86y6DhsqI';
 
-  const TABLES = ['kitchens','users','menu','orders','shifts','tasks','swaps','sos','alerts','reconciliations','clockins','onboarding','audit','customer_feedback','members','coupons','reservations','waitlist'];
+  const TABLES = ['kitchens','users','menu','orders','shifts','tasks','swaps','sos','alerts','reconciliations','clockins','onboarding','audit','customer_feedback','members','coupons','reservations','waitlist','inventory'];
 
   let client=null, signupClient=null;
   try{

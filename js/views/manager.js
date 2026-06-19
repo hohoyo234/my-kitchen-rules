@@ -25,6 +25,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       {id:'pos',      label:'POS',         em:'🧾', short:'POS',    feature:'pos'},
       {id:'kds',      label:'Kitchen',     em:'📺', short:'Kitchen',feature:'kds'},
       {id:'bookings', label:'Bookings',    em:'📖', short:'Bookings',feature:'bookings'},
+      {id:'inventory',label:'Inventory',   em:'📦', short:'Stock',  feature:'inventory'},
       {id:'qr',       label:'Table QR',    em:'📱', short:'QR',     feature:'qrorder'},
     ],
     async badges(){
@@ -42,6 +43,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       if(section==='tasks') return tasks(c);
       if(section==='swaps') return swaps(c);
       if(section==='bookings') return bookings(c);
+      if(section==='inventory') return MKR.inventory.render(c);
     }
   };
 

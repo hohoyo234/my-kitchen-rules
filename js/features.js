@@ -19,6 +19,7 @@ window.MKR = window.MKR || {};
     availability:{label:'Staff availability',on:true, roles:['staff']},
     qrorder:  {label:'Table QR ordering',   on:true, roles:['manager']},
     bookings: {label:'Bookings & queue',     on:true, roles:['manager']},
+    inventory:{label:'Inventory & stock',    on:true, roles:['owner','manager']},
     notify:   {label:'Notifications & nudges',on:true, roles:['owner','manager','staff']},
   };
 

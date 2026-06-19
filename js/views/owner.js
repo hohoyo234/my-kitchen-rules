@@ -41,6 +41,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       {id:'alerts',    label:'Alerts',       em:'🚨', short:'Alerts'},
       {id:'audit',     label:'Audit log',    em:'🔍', short:'Audit'},
       {id:'labor',     label:'Labor cost',   em:'💰', short:'Labor'},
+      {id:'inventory', label:'Inventory',    em:'📦', short:'Stock', feature:'inventory'},
       {id:'team',      label:'Team',         em:'👥', short:'Team'},
       {id:'performance',label:'Performance', em:'🏅', short:'Perform'},
       {id:'membership',label:'Membership',   em:'🪪', short:'Members'},
@@ -70,6 +71,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       if(section==='membership') return membership(c);
       if(section==='branches') return branches(c);
       if(section==='compliance') return compliance(c);
+      if(section==='inventory') return MKR.inventory.render(c);
       if(section==='feedback') return feedback(c);
       if(section==='switch') return switchView(c);
       if(section==='settings') return settings(c);
