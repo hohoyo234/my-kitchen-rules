@@ -37,6 +37,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
 
             <div class="field"><label>Username or ID</label><input class="input" id="lu" value="boss" autocomplete="username"></div>
             <div class="field"><label>Password</label><input class="input" id="lp" type="password" autocomplete="current-password"></div>
+            <div style="text-align:right;margin:-6px 0 12px"><a href="#" id="forgotLink" class="faint" style="font-size:12.5px;font-weight:600">Forgot password?</a></div>
             <div id="lerr" class="alert red hidden" style="margin-bottom:12px"></div>
             <button class="btn btn-dark btn-block" id="lbtn">Sign in</button>
 
@@ -106,6 +107,16 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       }
       btn.onclick=doLogin;
       lp.addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+
+      const forgot=U.qs('#forgotLink',root);
+      if(forgot) forgot.onclick=async(e)=>{ e.preventDefault();
+        const guess = lu.value.includes('@') ? lu.value : '';
+        const email = prompt('Enter your account email to receive a reset link.\n(Reset emails only reach accounts registered with a real email address.)', guess);
+        if(!email) return;
+        const r = await MKR.account.forgotPassword(email);
+        if(r.ok){ U.toast('Reset link sent — check your inbox','green'); }
+        else { showErr(r.msg||'Could not send reset email'); }
+      };
 
       const gbtn=U.qs('#gbtn',root);
       gbtn.onclick=async()=>{
