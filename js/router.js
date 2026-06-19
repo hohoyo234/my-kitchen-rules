@@ -88,7 +88,7 @@ window.MKR = window.MKR || {};
           ${nav}
           <div class="side-foot">
             <div class="who" style="margin-bottom:10px"><div class="ava">${sess.emoji||MKR.util.initials(sess.name)}</div><div><b style="font-size:14px">${MKR.util.esc(sess.name)}</b><div class="faint" style="font-size:11.5px">${MKR.auth.roleName(sess.role)}${preview?' · previewing '+MKR.auth.roleName(viewingRole):''}</div></div></div>
-            <button class="btn btn-ghost btn-sm btn-block" id="logoutBtn">Log out</button>
+            <div class="row gap6"><button class="btn btn-ghost btn-sm grow" id="pwBtn">🔑 Password</button><button class="btn btn-ghost btn-sm grow" id="logoutBtn">Log out</button></div>
           </div>
         </aside>
         <div class="main">
@@ -111,6 +111,8 @@ window.MKR = window.MKR || {};
       if(MKR.net.isDirty() && !confirm('You have unsaved data — log out anyway?')) return;
       MKR.auth.logout();
     };
+    const pwBtn=document.getElementById('pwBtn');
+    if(pwBtn) pwBtn.onclick = ()=>{ if(MKR.account) MKR.account.openChangePassword(); };
     const exitImp=document.getElementById('exitImp');
     if(exitImp) exitImp.onclick=(e)=>{ e.preventDefault(); MKR.auth.exitImpersonate(); location.hash='#/superadmin/restaurants'; render(); };
     MKR.net.render();
