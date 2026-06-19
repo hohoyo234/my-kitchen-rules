@@ -1293,8 +1293,8 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       // Document viewers
       U.qsa('[data-doc]',c).forEach(b=>b.onclick=()=>{ const img=ob[b.dataset.doc]; if(img) U.modal('Document', `<img src="${img}" style="width:100%;border-radius:12px">`); });
       // TFN / passport reveal
-      const tb=U.qs('#tfnBtn',c); if(tb) tb.onclick=async()=>{ const v=await MKR.crypto.dec(ob.tfnEnc); await MKR.audit.log({action:'tfn.view',desc:`Revealed ${u.name}'s TFN`}); U.qs('#tfnSlot',c).textContent=v; tb.remove(); };
-      const pb=U.qs('#ppBtn',c); if(pb) pb.onclick=async()=>{ const v=await MKR.crypto.dec(ob.passportEnc); await MKR.audit.log({action:'tfn.view',desc:`Revealed ${u.name}'s passport no.`}); U.qs('#ppSlot',c).textContent=v; pb.remove(); };
+      const tb=U.qs('#tfnBtn',c); if(tb) tb.onclick=async()=>{ const v=await MKR.crypto.dec(ob.tfnEnc, ob.userId); await MKR.audit.log({action:'tfn.view',desc:`Revealed ${u.name}'s TFN`}); U.qs('#tfnSlot',c).textContent=v; tb.remove(); };
+      const pb=U.qs('#ppBtn',c); if(pb) pb.onclick=async()=>{ const v=await MKR.crypto.dec(ob.passportEnc, ob.userId); await MKR.audit.log({action:'tfn.view',desc:`Revealed ${u.name}'s passport no.`}); U.qs('#ppSlot',c).textContent=v; pb.remove(); };
     }
 
     // ---- Edit mode ----
@@ -1342,8 +1342,8 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         const obId = (ob&&ob.id) || ('onb_'+id);
         const rec = { id:obId, userId:id, superFund:v('f_super'), bsb:v('f_bsb'), acct:v('f_acct') };
         if(ob){ rec.passportDoc=ob.passportDoc; rec.tfnForm=ob.tfnForm; rec.superForm=ob.superForm; }
-        const pp=v('f_passport'); if(pp) rec.passportEnc=await MKR.crypto.enc(pp); else if(ob&&ob.passportEnc) rec.passportEnc=ob.passportEnc;
-        const tf=v('f_tfn').replace(/\D/g,''); if(tf) rec.tfnEnc=await MKR.crypto.enc(tf); else if(ob&&ob.tfnEnc) rec.tfnEnc=ob.tfnEnc;
+        const pp=v('f_passport'); if(pp) rec.passportEnc=await MKR.crypto.enc(pp, id); else if(ob&&ob.passportEnc) rec.passportEnc=ob.passportEnc;
+        const tf=v('f_tfn').replace(/\D/g,''); if(tf) rec.tfnEnc=await MKR.crypto.enc(tf, id); else if(ob&&ob.tfnEnc) rec.tfnEnc=ob.tfnEnc;
         await MKR.db.put('onboarding', rec);
         await MKR.audit.log({action:'staff.hire', desc:`Updated ${u.name}'s profile`});
         U.toast('Profile saved','green');

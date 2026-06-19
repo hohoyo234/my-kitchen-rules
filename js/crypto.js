@@ -39,10 +39,34 @@ window.MKR = window.MKR || {};
   async function fallbackKey(){ let k=localGet(LOCAL_KEY_FB); if(!k){ k=MKR.util.uid('k')+MKR.util.uid('k'); localSet(LOCAL_KEY_FB,k);} return k; }
   function xorCipher(text,key){ let o=''; for(let i=0;i<text.length;i++) o+=String.fromCharCode(text.charCodeAt(i)^key.charCodeAt(i%key.length)); return o; }
 
+  // --- Server-side crypto via the reveal-field Edge Function (key in Vault) ---
+  // The function verifies the caller from their JWT (super admin / the staff
+  // member themselves / the owner of that staff's kitchen). Returns null if the
+  // function isn't deployed or the caller isn't signed in → we fall back to local.
+  async function callServer(action, value, userId){
+    if(!(MKR.supa && MKR.supa.client && MKR.supa.URL && MKR.supa.ANON)) return null;
+    let token=''; try{ const {data}=await MKR.supa.client.auth.getSession(); token=(data&&data.session&&data.session.access_token)||''; }catch(e){}
+    if(!token) return null;
+    try{
+      const res=await fetch(`${MKR.supa.URL}/functions/v1/reveal-field`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json','apikey':MKR.supa.ANON,'Authorization':'Bearer '+token},
+        body:JSON.stringify({action, value, userId:userId||null})
+      });
+      if(!res.ok) return null;
+      const out=await res.json().catch(()=>null);
+      return out && typeof out.value==='string' ? out.value : null;
+    }catch(e){ return null; }
+  }
+
   const C={
     available: !!subtle,
-    async enc(plain){
+    // enc(plain, userId): prefer server-side encryption (Vault key, owner-readable
+    // on ANY device); fall back to device-local AES when the function isn't there.
+    async enc(plain, userId){
       if(plain==null||plain==='') return '';
+      const srv = await callServer('encrypt', String(plain), userId);
+      if(srv) return 'srv:'+srv;
       if(subtle){
         const key=await getKey();
         const iv=window.crypto.getRandomValues(new Uint8Array(12));
@@ -53,9 +77,13 @@ window.MKR = window.MKR || {};
       }
       return 'xor:'+btoa(unescape(encodeURIComponent(xorCipher(String(plain), await fallbackKey()))));
     },
-    async dec(blob){
+    async dec(blob, userId){
       if(!blob) return '';
       try{
+        if(blob.startsWith('srv:')){
+          const v = await callServer('decrypt', blob.slice(4), userId);
+          return v!=null ? v : '⚠️ reveal unavailable — deploy the reveal-field function (see SECURITY.md)';
+        }
         if(blob.startsWith('aes:') && subtle){
           const key=await getKey();
           const buf=Uint8Array.from(atob(blob.slice(4)),c=>c.charCodeAt(0));
