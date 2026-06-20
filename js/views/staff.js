@@ -203,8 +203,8 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
 
     // Staff can see their OWN sensitive info in full (no masking for one's own data).
     let tfnPlain='', passPlain='';
-    try{ if(ob.tfnEnc) tfnPlain = await MKR.crypto.dec(ob.tfnEnc); }catch(e){}
-    try{ if(ob.passportEnc) passPlain = await MKR.crypto.dec(ob.passportEnc); }catch(e){}
+    try{ if(ob.tfnEnc) tfnPlain = await MKR.crypto.dec(ob.tfnEnc, sess.id); }catch(e){}
+    try{ if(ob.passportEnc) passPlain = await MKR.crypto.dec(ob.passportEnc, sess.id); }catch(e){}
 
     function docStatus(){
       return {
@@ -289,7 +289,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         U.modal('🛂 Passport / ID',wrap,{actions:[{label:'Save',class:'btn-dark',onClick:async(cl)=>{
           const no=U.qs('#pp_no',wrap).value.trim();
           const patch={ passportDoc: img };
-          if(no){ patch.passportEnc = await MKR.crypto.enc(no); passPlain=no; }
+          if(no){ patch.passportEnc = await MKR.crypto.enc(no, sess.id); passPlain=no; }
           await patchOb(patch); cl(); U.toast('Passport saved','green'); draw();
         }}]});
       }
@@ -305,7 +305,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         U.modal('🪪 TFN declaration',wrap,{actions:[{label:'Save',class:'btn-dark',onClick:async(cl)=>{
           const tfn=U.qs('#tfn_no',wrap).value.replace(/\D/g,'');
           const patch={ tfnForm: form };
-          if(tfn){ if(tfn.length<8){ U.toast('Please enter a valid TFN','red'); return; } patch.tfnEnc = await MKR.crypto.enc(tfn); tfnPlain=tfn; }
+          if(tfn){ if(tfn.length<8){ U.toast('Please enter a valid TFN','red'); return; } patch.tfnEnc = await MKR.crypto.enc(tfn, sess.id); tfnPlain=tfn; }
           else if(!ob.tfnEnc){ U.toast('Please enter your TFN','red'); return; }
           await patchOb(patch); cl(); U.toast('TFN saved (encrypted)','green'); draw();
         }}]});
