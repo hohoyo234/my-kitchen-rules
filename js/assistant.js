@@ -106,10 +106,10 @@ window.MKR = window.MKR || {};
     const ob=(await MKR.db.getAll('onboarding')).find(o=>o.userId===s.id);
     const me=await MKR.db.get('users',s.id)||{};
     if(!ob) return `You haven't submitted onboarding details yet. ${jump('#/staff/me','Complete onboarding')}`;
-    if(which==='tfn'){ const v=ob.tfnEnc?await MKR.crypto.dec(ob.tfnEnc):null; return v?`Your TFN on file is <b>${U.esc(v)}</b>. (Only you and the owner can see it.)`:`No TFN submitted yet. ${jump('#/staff/me','Add it')}`; }
+    if(which==='tfn'){ const v=ob.tfnEnc?await MKR.crypto.dec(ob.tfnEnc, ob.userId):null; return v?`Your TFN on file is <b>${U.esc(v)}</b>. (Only you and the owner can see it.)`:`No TFN submitted yet. ${jump('#/staff/me','Add it')}`; }
     if(which==='super') return `Your Super fund: <b>${U.esc(ob.superFund||'—')}</b>${ob.superMember?` · member ${U.esc(ob.superMember)}`:''}.`;
     if(which==='bank') return `Your bank on file: BSB <b>${U.esc(ob.bsb||'—')}</b> · acct <b>${U.esc(ob.acct||'—')}</b>.`;
-    if(which==='passport'){ const v=ob.passportEnc?await MKR.crypto.dec(ob.passportEnc):null; return v?`Your passport / ID number on file is <b>${U.esc(v)}</b>.`:`No passport number submitted yet.`; }
+    if(which==='passport'){ const v=ob.passportEnc?await MKR.crypto.dec(ob.passportEnc, ob.userId):null; return v?`Your passport / ID number on file is <b>${U.esc(v)}</b>.`:`No passport number submitted yet.`; }
   }
   async function onboardStatus(){
     const s=MKR.auth.current(); if(!s) return signIn();

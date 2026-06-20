@@ -289,7 +289,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         U.modal('🛂 Passport / ID',wrap,{actions:[{label:'Save',class:'btn-dark',onClick:async(cl)=>{
           const no=U.qs('#pp_no',wrap).value.trim();
           const patch={ passportDoc: img };
-          if(no){ patch.passportEnc = await MKR.crypto.enc(no); passPlain=no; }
+          if(no){ patch.passportEnc = await MKR.crypto.enc(no, sess.id); passPlain=no; }
           await patchOb(patch); cl(); U.toast('Passport saved','green'); draw();
         }}]});
       }
