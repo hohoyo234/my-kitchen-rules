@@ -17,6 +17,8 @@ window.MKR = window.MKR || {};
     if(role==='order'){ return MKR.customer.render(root, section, arg); }
     // Public customer self-service rewards (no login): #/points
     if(role==='points'){ return MKR.points.render(root); }
+    // Public email-verification page (no login): #/verify/<email>
+    if(role==='verify'){ return MKR.verify.render(root, section); }
     // Public manager/staff join-by-link route: #/join/<kitchenId>
     if(role==='join'){ return MKR.join.render(root, section); }
 

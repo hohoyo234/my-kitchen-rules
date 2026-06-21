@@ -97,15 +97,34 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
       if(!/(日报|周报|总结|汇报|summary|生意怎么|怎么样|今天.*如何|today.*going)/.test(low)) return null;
       return { desc:'生成今日经营总结（只读）', readOnly:true, run:async()=> await dailySummary() };
     },
-    // 发邮件 (needs send-email function deployed; degrades gracefully)
+    // 发邮件 / 发验证邮件 (needs send-email deployed; verify needs verify-setup.sql)
     async function(t){
       const em = t.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
-      if(!em || !/(邮件|email|发信|mail|验证)/i.test(t)) return null;
+      if(!em || !/(邮件|email|发信|mail|验证|verify)/i.test(t)) return null;
       const to = em[0];
-      const subject = /验证|verify/i.test(t) ? '邮箱验证 · My Kitchen' : 'My Kitchen 通知';
-      const body = t.replace(em[0],'').replace(/(发邮件|发信|email|mail|给|to)/gi,'').trim() || '这是一封来自 My Kitchen 全能助手的测试邮件。';
-      return { desc:`给 <b>${U.esc(to)}</b> 发一封邮件（${U.esc(subject)}）`,
-        run:async()=>{ if(!MKR.email||!MKR.email.send) return '✉️ 发信功能尚未启用（需部署 send-email 边缘函数）。'; const r=await MKR.email.send({to, subject, html:`<p>${U.esc(body)}</p>`}); return r&&r.ok ? `✉️ 已发送到 ${U.esc(to)}。` : `✉️ 发送失败：${U.esc((r&&r.error)||'未知错误（多半是 send-email 还没部署）')}。`; } };
+      const isVerify = /验证|verify/i.test(t);
+      return { desc:`给 <b>${U.esc(to)}</b> 发一封${isVerify?'<b>验证</b>':'通知'}邮件`,
+        run:async()=>{
+          if(!MKR.email || !MKR.email.send) return '✉️ 发信功能尚未启用（需部署 send-email 边缘函数）。';
+          const brand = ((await MKR.db.meta('brand'))||{}).name || 'My Kitchen';
+          let subject, html;
+          if(isVerify){
+            const code = String(Math.floor(100000 + Math.random()*900000));
+            try{ await MKR.db.put('verifications', { email:to.toLowerCase(), code, purpose:'email', used:false,
+              expires:new Date(Date.now()+30*60000).toISOString(), kitchenId:kid() }); }catch(e){}
+            const url = location.origin + location.pathname + '#/verify/' + encodeURIComponent(to);
+            subject = `${brand} · 邮箱验证 Verify your email`;
+            html = MKR.email.template({ brand, title:'确认你的邮箱 / Confirm your email',
+              intro:'请用下面的验证码完成验证，或点击按钮前往验证页面。Use the code below, or tap the button to verify.',
+              code, ctaUrl:url, ctaLabel:'前往验证 / Verify' });
+          } else {
+            const body = t.replace(em[0],'').replace(/(发邮件|发信|email|mail|给|to)/gi,'').trim() || '这是一封来自 My Kitchen 全能助手的消息。';
+            subject = `${brand} · 通知`;
+            html = MKR.email.template({ brand, title:'通知 / Message', intro:body });
+          }
+          const r = await MKR.email.send({ to, subject, html });
+          return r && r.ok ? `✉️ 已发送${isVerify?'验证码':''}到 ${U.esc(to)}。${isVerify?'（让对方查收邮件、输入验证码即可）':''}` : `✉️ 发送失败：${U.esc((r&&r.error)||'未知错误（多半是 send-email 还没部署）')}。`;
+        } };
     },
   ];
 
