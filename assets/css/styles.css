@@ -617,3 +617,22 @@ body{
 @media (hover:hover) and (pointer:fine){
   .stat:hover,.ds-tile:hover{box-shadow:var(--shadow-soft)}
 }
+
+/* ===== 全能助手 · AI Admin agent ===== */
+.ai-admin{max-width:760px;margin:0 auto;display:flex;flex-direction:column;height:calc(100vh - 140px);min-height:420px}
+.aa-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--line-2);margin-bottom:14px}
+.aa-orb{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;font-size:20px;
+  background:linear-gradient(150deg,var(--ink),#3a342e);color:#fff;box-shadow:var(--shadow-soft)}
+.aa-log{flex:1;overflow:auto;display:flex;flex-direction:column;gap:12px;padding:4px 2px 10px}
+.aa-msg{max-width:86%;padding:13px 16px;border-radius:16px;font-size:14.5px;line-height:1.6;word-wrap:break-word;overflow-wrap:anywhere}
+.aa-msg.bot{align-self:flex-start;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow-soft);border-bottom-left-radius:6px}
+.aa-msg.user{align-self:flex-end;background:var(--ink);color:var(--paper);border-bottom-right-radius:6px}
+.aa-msg b{font-weight:700}
+.aa-confirm{font-size:14.5px}
+.aa-chips{display:flex;gap:8px;flex-wrap:wrap;padding:10px 0}
+.aa-chip{font-size:13px;padding:8px 13px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);white-space:nowrap}
+.aa-chip:hover{border-color:var(--accent);color:var(--accent-ink)}
+.aa-input{display:flex;gap:8px;align-items:center;padding-top:10px;border-top:1px solid var(--line-2)}
+.aa-input .input{flex:1;height:50px;border-radius:14px}
+.aa-input .btn{height:50px;width:50px;padding:0;border-radius:14px;flex:none}
+@media(max-width:520px){ .ai-admin{height:calc(100vh - 170px)} }

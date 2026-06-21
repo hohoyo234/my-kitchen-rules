@@ -39,6 +39,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     home:'dashboard', subtitle:'Hands-off management — results & approvals only',
     nav:[
       {id:'dashboard', label:'Dashboard',    em:'📊', short:'Dash'},
+      {id:'assistant', label:'AI Assistant', em:'✨', short:'AI'},
       {id:'analytics', label:'Analytics',    em:'📈', short:'Analytics'},
       {id:'report',    label:'Daily report', em:'📩', short:'Report'},
       {id:'alerts',    label:'Alerts',       em:'🚨', short:'Alerts'},
@@ -64,6 +65,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       }
       if(section==='setup') return setupWizard(c, sess && sess.kitchenId ? await MKR.db.get('kitchens', sess.kitchenId) : null);
       if(section==='dashboard') return dashboard(c);
+      if(section==='assistant') return MKR.views.admin.render(c);
       if(section==='analytics') return analytics(c);
       if(section==='report') return report(c);
       if(section==='alerts') return alerts(c);

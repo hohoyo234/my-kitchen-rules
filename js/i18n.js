@@ -24,7 +24,7 @@ window.MKR = window.MKR || {};
     "Hands-off management — results & approvals only":"省心管理 — 只看结果与审批",
     "Run operations & lead the team · roster / add users / review":"运营与带队 · 排班 / 加人 / 审核",
     "Simple execution · shifts / clock-in / claim":"简单执行 · 班次 / 打卡 / 抢班",
-    "Dashboard":"工作台", "Daily report":"每日报告", "Alerts":"提醒", "Audit log":"审计日志",
+    "Dashboard":"工作台", "AI Assistant":"全能助手", "Daily report":"每日报告", "Alerts":"提醒", "Audit log":"审计日志",
     "Labor cost":"人力成本", "Team":"团队", "Super Admin":"超级管理员", "Compliance":"合规",
     // Mobile bottom-nav short labels
     "Dash":"工作台", "Report":"报告", "Audit":"审计", "Labor":"人力", "Comply":"合规",
