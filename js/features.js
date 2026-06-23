@@ -21,6 +21,16 @@ window.MKR = window.MKR || {};
     bookings: {label:'Bookings & queue',     on:true, roles:['manager']},
     inventory:{label:'Inventory & stock',    on:true, roles:['owner','manager']},
     notify:   {label:'Notifications & nudges',on:true, roles:['owner','manager','staff']},
+    // Owner-side pages the owner can hide from their own sidebar (core pages —
+    // dashboard / report / alerts / audit / compliance / settings — stay on).
+    o_assistant:  {label:'Owner · AI Assistant',  on:true, roles:['owner']},
+    o_analytics:  {label:'Owner · Analytics',     on:true, roles:['owner']},
+    o_labor:      {label:'Owner · Labor cost',    on:true, roles:['owner']},
+    o_team:       {label:'Owner · Team',          on:true, roles:['owner']},
+    o_performance:{label:'Owner · Performance',   on:true, roles:['owner']},
+    o_membership: {label:'Owner · Membership',    on:true, roles:['owner']},
+    o_branches:   {label:'Owner · Branches',      on:true, roles:['owner']},
+    o_feedback:   {label:'Owner · Feedback',      on:true, roles:['owner']},
   };
 
   let _cache=null;

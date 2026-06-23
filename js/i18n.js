@@ -46,6 +46,16 @@ window.MKR = window.MKR || {};
     "Seated booking":"已为预订入座", "Marked no-show":"已标记未到", "Cancelled booking":"已取消预订",
     // Audit search
     "Search actions, people, details…":"搜索操作、人员、详情…", "No matching actions":"无匹配的操作", "No actions recorded yet":"暂无操作记录",
+    // Inventory
+    "Inventory":"库存", "Stock":"库存", "Inventory & stock":"库存与备货",
+    // Alerts auto-clean
+    "Auto-clear after":"超过此天数自动清理", "Never":"不清理", "3 days":"3 天", "7 days":"7 天", "14 days":"14 天", "30 days":"30 天",
+    "🗑️ Clear read":"🗑️ 清除已读", "Auto-clear setting saved":"自动清理设置已保存",
+    "Clear read alerts":"清除已读提醒", "Delete all alerts already marked read?":"删除所有已标为已读的提醒？", "Clear":"清除",
+    // Owner-page feature toggles (Settings)
+    "Owner · AI Assistant":"老板 · 全能助手", "Owner · Analytics":"老板 · 经营分析", "Owner · Labor cost":"老板 · 人力成本",
+    "Owner · Team":"老板 · 团队", "Owner · Performance":"老板 · 绩效", "Owner · Membership":"老板 · 会员",
+    "Owner · Branches":"老板 · 分店", "Owner · Feedback":"老板 · 顾客反馈",
     // Audit action labels (new)
     "Sold-out change":"沽清调整", "Booking update":"预订更新", "New member":"新会员",
     "Member top-up":"会员充值", "Adjust points":"调整积分", "Issue coupon":"发放优惠券", "Staff reward":"员工奖励",

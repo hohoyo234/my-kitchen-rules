@@ -39,19 +39,19 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     home:'dashboard', subtitle:'Hands-off management — results & approvals only',
     nav:[
       {id:'dashboard', label:'Dashboard',    em:'📊', short:'Dash'},
-      {id:'assistant', label:'AI Assistant', em:'✨', short:'AI'},
-      {id:'analytics', label:'Analytics',    em:'📈', short:'Analytics'},
+      {id:'assistant', label:'AI Assistant', em:'✨', short:'AI',        feature:'o_assistant'},
+      {id:'analytics', label:'Analytics',    em:'📈', short:'Analytics', feature:'o_analytics'},
       {id:'report',    label:'Daily report', em:'📩', short:'Report'},
       {id:'alerts',    label:'Alerts',       em:'🚨', short:'Alerts'},
       {id:'audit',     label:'Audit log',    em:'🔍', short:'Audit'},
-      {id:'labor',     label:'Labor cost',   em:'💰', short:'Labor'},
-      {id:'inventory', label:'Inventory',    em:'📦', short:'Stock', feature:'inventory'},
-      {id:'team',      label:'Team',         em:'👥', short:'Team'},
-      {id:'performance',label:'Performance', em:'🏅', short:'Perform'},
-      {id:'membership',label:'Membership',   em:'🪪', short:'Members'},
-      {id:'branches',  label:'Branches',     em:'🏢', short:'Branches'},
+      {id:'labor',     label:'Labor cost',   em:'💰', short:'Labor',     feature:'o_labor'},
+      {id:'inventory', label:'Inventory',    em:'📦', short:'Stock',     feature:'inventory'},
+      {id:'team',      label:'Team',         em:'👥', short:'Team',      feature:'o_team'},
+      {id:'performance',label:'Performance', em:'🏅', short:'Perform',   feature:'o_performance'},
+      {id:'membership',label:'Membership',   em:'🪪', short:'Members',   feature:'o_membership'},
+      {id:'branches',  label:'Branches',     em:'🏢', short:'Branches',  feature:'o_branches'},
       {id:'compliance',label:'Compliance',   em:'🛡️', short:'Comply'},
-      {id:'feedback',  label:'Feedback',     em:'⭐', short:'Reviews'},
+      {id:'feedback',  label:'Feedback',     em:'⭐', short:'Reviews',   feature:'o_feedback'},
       {id:'switch',    label:'Switch view',  em:'👁', short:'Switch'},
       {id:'settings',  label:'Settings',     em:'⚙️', short:'Settings'},
     ],
@@ -872,18 +872,35 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
 
   // ---------- Alerts ----------
   async function alerts(c){
+    const settings = await MKR.db.meta('settings') || {};
+    let retention = settings.alertRetentionDays==null ? 7 : settings.alertRetentionDays;  // 0 = keep forever
+    // Auto-clean: drop alerts older than the chosen retention so the list stays tidy.
+    if(retention>0){
+      const cut = Date.now() - retention*864e5;
+      for(const a of await MKR.db.getAll('alerts')){ if((a.ts||0) < cut) await MKR.db.remove('alerts', a.id); }
+    }
     let list=(await MKR.db.getAll('alerts')).sort((a,b)=>b.ts-a.ts);
+    async function reload(){ list=(await MKR.db.getAll('alerts')).sort((x,y)=>y.ts-x.ts); draw(); }
     function draw(){
+      const opts=[3,7,14,30,0].map(d=>`<option value="${d}"${d===retention?' selected':''}>${d===0?'Never':d+' days'}</option>`).join('');
       c.innerHTML=`<div class="section-head"><div><h2>Critical alerts</h2><p>Only fires on variance / big refunds / lateness etc.</p></div>
-        ${list.some(a=>!a.read)?'<button class="btn btn-ghost btn-sm" id="readAll">Mark all read</button>':''}</div>
+        <div class="row gap8 wrap center">
+          <span class="faint" style="font-size:13px">Auto-clear after</span>
+          <select class="input" id="retSel" style="height:38px;width:auto">${opts}</select>
+          ${list.some(a=>a.read)?'<button class="btn btn-ghost btn-sm" id="clrRead">🗑️ Clear read</button>':''}
+          ${list.some(a=>!a.read)?'<button class="btn btn-ghost btn-sm" id="readAll">Mark all read</button>':''}
+        </div></div>
         <div id="al"></div>`;
       const el=U.qs('#al',c);
-      if(!list.length){ el.innerHTML=`<div class="empty"><div class="em">😌</div><p>No alerts — all good</p></div>`; return; }
-      el.innerHTML=list.map(a=>`<div class="alert ${a.level==='red'?'red':'amber'}" style="margin-bottom:12px;${a.read?'opacity:.55':''}"><span>${a.level==='red'?'⚠️':'🔔'}</span>
+      if(!list.length){ el.innerHTML=`<div class="empty"><div class="em">😌</div><p>No alerts — all good</p></div>`; }
+      else el.innerHTML=list.map(a=>`<div class="alert ${a.level==='red'?'red':'amber'}" style="margin-bottom:12px;${a.read?'opacity:.55':''}"><span>${a.level==='red'?'⚠️':'🔔'}</span>
         <div class="grow"><b>${U.esc(a.title)}</b><br>${U.esc(a.desc)} · <span class="faint">${U.ago(a.ts)}</span></div>
-        ${a.read?'<span class="pill ghost">Read</span>':`<button class="btn btn-ghost btn-sm" data-r="${a.id}">Mark read</button>`}</div>`).join('');
-      U.qsa('[data-r]',el).forEach(b=>b.onclick=async()=>{ await MKR.db.put('alerts',{id:b.dataset.r,read:true}); list=(await MKR.db.getAll('alerts')).sort((x,y)=>y.ts-x.ts); draw(); });
-      const ra=U.qs('#readAll',c); if(ra) ra.onclick=async()=>{ for(const a of list) if(!a.read) await MKR.db.put('alerts',{id:a.id,read:true}); list=(await MKR.db.getAll('alerts')).sort((x,y)=>y.ts-x.ts); draw(); };
+        <div class="row gap6">${a.read?'<span class="pill ghost">Read</span>':`<button class="btn btn-ghost btn-sm" data-r="${a.id}">Mark read</button>`}<button class="btn btn-ghost btn-sm" data-x="${a.id}" aria-label="Delete">✕</button></div></div>`).join('');
+      U.qs('#retSel',c).onchange=async(e)=>{ retention=+e.target.value; const s=await MKR.db.meta('settings')||{}; s.alertRetentionDays=retention; await MKR.db.meta('settings',s); U.toast('Auto-clear setting saved','green'); alerts(c); };
+      U.qsa('[data-r]',el).forEach(b=>b.onclick=async()=>{ await MKR.db.put('alerts',{id:b.dataset.r,read:true}); reload(); });
+      U.qsa('[data-x]',el).forEach(b=>b.onclick=async()=>{ await MKR.db.remove('alerts',b.dataset.x); reload(); });
+      const ra=U.qs('#readAll',c); if(ra) ra.onclick=async()=>{ for(const a of list) if(!a.read) await MKR.db.put('alerts',{id:a.id,read:true}); reload(); };
+      const cr=U.qs('#clrRead',c); if(cr) cr.onclick=async()=>{ if(await U.confirm('Clear read alerts','Delete all alerts already marked read?',{ok:'Clear',danger:true})){ for(const a of list) if(a.read) await MKR.db.remove('alerts',a.id); reload(); } };
     }
     draw();
   }
