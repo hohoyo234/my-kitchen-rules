@@ -257,6 +257,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       await MKR.features.save(work);
       await MKR.audit.log({action:'settings.update', desc:'Updated settings / permissions'});
       U.toast('Settings saved across the venue','green');
+      MKR.router.refresh();   // rebuild the shell so hidden features drop out of the sidebar right away
     };
 
     // ---- Restaurant profile (logo + name) ----
