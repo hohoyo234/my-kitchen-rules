@@ -336,6 +336,9 @@ window.MKR = window.MKR || {};
     "This is just your availability — the final roster is set by your manager.":"这只是你的可用时间 — 最终排班由经理决定。",
     "Morning 09-15":"早班 09-15", "Evening 15-22":"晚班 15-22", "All day 09-22":"全天 09-22",
     "Availability saved":"可用时间已保存",
+    "My availability":"我的可用时间",
+    "Pick the times you can work each day — the auto-roster uses this to schedule you too":"选择你每天可上班的时段 —— 自动排班会据此把你也排进去",
+    "Set your availability so the owner/auto-roster can put you on the right shifts. Managers can be rostered just like staff.":"填好可用时间，老板/自动排班就能把你排到合适的班次。经理也能像员工一样被排班。",
 
     // ---- Staff: My shifts ----
     "One-tap clock-in on the day · drop a shift if something comes up":"当天一键打卡 · 有事可放出班次",

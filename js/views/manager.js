@@ -18,6 +18,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     nav:[
       {id:'schedule', label:'Rostering',   em:'📅', short:'Roster', feature:'schedule'},
       {id:'myshifts', label:'My shifts',   em:'🙋', short:'Mine'},
+      {id:'availability', label:'My availability', em:'🗓️', short:'Available', feature:'availability'},
       {id:'hire',     label:'Add Users',   em:'➕', short:'Add',    feature:'hire'},
       {id:'menu',     label:'Menu & Items',em:'🍔', short:'Menu',   feature:'menu'},
       {id:'tasks',    label:'Tasks',       em:'✅', short:'Tasks',  feature:'tasks'},
@@ -38,6 +39,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       if(section==='qr') return qrcodes(c);
       if(section==='schedule') return schedule(c);
       if(section==='myshifts') return myShifts(c);
+      if(section==='availability') return availabilityPage(c);
       if(section==='hire') return hire(c);
       if(section==='menu') return menuManager(c);
       if(section==='tasks') return tasks(c);
@@ -46,6 +48,30 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       if(section==='inventory') return MKR.inventory.render(c);
     }
   };
+
+  // ---------- My availability (manager fills their own, like staff) ----------
+  const AVAIL_OPTS=[['off','Off','var(--red-soft)'],['am','Morning 09-15','var(--blue-soft)'],['pm','Evening 15-22','var(--accent-soft)'],['all','All day 09-22','var(--green-soft)']];
+  async function availabilityPage(c){
+    const sess=MKR.auth.current();
+    const me=await MKR.db.get('users',sess.id)||{};
+    const av=Object.assign({}, me.availability||{});   // {0..6:'off|am|pm|all'}
+    c.innerHTML=`
+      <div class="section-head"><div><h2>My availability</h2><p>Pick the times you can work each day — the auto-roster uses this to schedule you too</p></div>
+        <button class="btn btn-dark btn-sm" id="saveAv">Save</button></div>
+      <div class="card" style="padding:12px 18px"><div id="avlist"></div></div>
+      <div class="disclaimer mt16"><span>🗓️</span>Set your availability so the owner/auto-roster can put you on the right shifts. Managers can be rostered just like staff.</div>`;
+    const el=U.qs('#avlist',c);
+    function draw(){   // only redraw the list, so the Save button keeps its handler
+      el.innerHTML=DAYS.map((d,i)=>{
+        const cur=av[i]||'off';
+        const opts=AVAIL_OPTS.map(([v,label])=>`<button class="pill ${cur===v?'ok':'ghost'}" data-set="${i}:${v}" style="cursor:pointer">${label}</button>`).join(' ');
+        return `<div class="li" style="flex-wrap:wrap;gap:8px"><div class="meta" style="min-width:70px"><b>${d}</b></div><div class="row gap6 wrap">${opts}</div></div>`;
+      }).join('');
+      U.qsa('[data-set]',el).forEach(b=>b.onclick=()=>{ const [i,v]=b.dataset.set.split(':'); av[i]=v; draw(); });
+    }
+    draw();
+    U.qs('#saveAv',c).onclick=async()=>{ await MKR.db.put('users',{id:sess.id, availability:av}); U.toast('Availability saved','green'); };
+  }
 
   // ---------- Reservations + walk-in queue ----------
   async function bookings(c){
@@ -481,7 +507,9 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         // 2) flexible slots
         for(const slot of SLOTS){
           const cands=staff.filter(s=>{
-            if(s.role==='manager') return false;            // managers are rostered manually, not auto-assigned
+            // Managers only auto-roster if they've set availability for the day
+            // (otherwise leave them for manual rostering); staff always eligible.
+            if(s.role==='manager'){ const mav=s.availability&&s.availability[day]; if(!mav||mav==='off') return false; }
             if(assignedToday.has(s.id)) return false;
             if(roleShifts[s.position] && roleShifts[s.position].fixed) return false;  // already handled above
             const av=(s.availability&&s.availability[day])||'all';

@@ -34,13 +34,13 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     const sess=MKR.auth.current();
     const me=await MKR.db.get('users',sess.id)||{};
     const av=Object.assign({}, me.availability||{});   // {0..6:'off|am|pm|all'}
-    function draw(){
-      c.innerHTML=`
-        <div class="section-head"><div><h2>Availability</h2><p>Pick the times you can work each day — the manager's auto-roster prioritises what you fill in</p></div>
-          <button class="btn btn-dark btn-sm" id="saveAv">Save</button></div>
-        <div class="card" style="padding:12px 18px"><div id="avlist"></div></div>
-        <div class="disclaimer mt16"><span>🗓️</span>This is just your availability — the final roster is set by your manager.</div>`;
-      const el=U.qs('#avlist',c);
+    c.innerHTML=`
+      <div class="section-head"><div><h2>Availability</h2><p>Pick the times you can work each day — the manager's auto-roster prioritises what you fill in</p></div>
+        <button class="btn btn-dark btn-sm" id="saveAv">Save</button></div>
+      <div class="card" style="padding:12px 18px"><div id="avlist"></div></div>
+      <div class="disclaimer mt16"><span>🗓️</span>This is just your availability — the final roster is set by your manager.</div>`;
+    const el=U.qs('#avlist',c);
+    function draw(){   // only redraw the list so the Save button keeps its click handler
       el.innerHTML=DAYS.map((d,i)=>{
         const cur=av[i]||'off';
         const opts=AVAIL_OPTS.map(([v,label])=>`<button class="pill ${cur===v?'ok':'ghost'}" data-set="${i}:${v}" style="cursor:pointer">${label}</button>`).join(' ');

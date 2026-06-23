@@ -16,7 +16,7 @@ window.MKR = window.MKR || {};
     tasks:    {label:'Task checklist',      on:true, roles:['manager','staff']},
     swaps:    {label:'Swap / SOS approval', on:true, roles:['manager']},
     market:   {label:'Staff swap market',   on:true, roles:['staff']},
-    availability:{label:'Staff availability',on:true, roles:['staff']},
+    availability:{label:'Availability (staff & manager)',on:true, roles:['staff','manager']},
     qrorder:  {label:'Table QR ordering',   on:true, roles:['manager']},
     bookings: {label:'Bookings & queue',     on:true, roles:['manager']},
     inventory:{label:'Inventory & stock',    on:true, roles:['owner','manager']},
