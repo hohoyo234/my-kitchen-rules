@@ -28,27 +28,34 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     }
   };
 
-  // ---------- Availability ----------
-  const AVAIL_OPTS=[['off','Off','var(--red-soft)'],['am','Morning 09-15','var(--blue-soft)'],['pm','Evening 15-22','var(--accent-soft)'],['all','All day 09-22','var(--green-soft)']];
+  // ---------- Availability (quick presets + custom time per day; per-row update) ----------
   async function availability(c){
     const sess=MKR.auth.current();
     const me=await MKR.db.get('users',sess.id)||{};
-    const av=Object.assign({}, me.availability||{});   // {0..6:'off|am|pm|all'}
+    const av=Object.assign({}, me.availability||{});   // {0..6: 'off'|'am'|'pm'|'all'|'HH:MM-HH:MM'}
     c.innerHTML=`
       <div class="section-head"><div><h2>Availability</h2><p>Pick the times you can work each day — the manager's auto-roster prioritises what you fill in</p></div>
         <button class="btn btn-dark btn-sm" id="saveAv">Save</button></div>
-      <div class="card" style="padding:12px 18px"><div id="avlist"></div></div>
-      <div class="disclaimer mt16"><span>🗓️</span>This is just your availability — the final roster is set by your manager.</div>`;
-    const el=U.qs('#avlist',c);
-    function draw(){   // only redraw the list so the Save button keeps its click handler
-      el.innerHTML=DAYS.map((d,i)=>{
-        const cur=av[i]||'off';
-        const opts=AVAIL_OPTS.map(([v,label])=>`<button class="pill ${cur===v?'ok':'ghost'}" data-set="${i}:${v}" style="cursor:pointer">${label}</button>`).join(' ');
-        return `<div class="li" style="flex-wrap:wrap;gap:8px"><div class="meta" style="min-width:70px"><b>${d}</b></div><div class="row gap6 wrap">${opts}</div></div>`;
-      }).join('');
-      U.qsa('[data-set]',el).forEach(b=>b.onclick=()=>{ const [i,v]=b.dataset.set.split(':'); av[i]=v; draw(); });
+      <div class="card" style="padding:6px 18px"><div id="avlist"></div></div>
+      <div class="disclaimer mt16"><span>🗓️</span>Tap a quick slot, or set your own start/end time per day. The final roster is set by your manager.</div>`;
+    const list=U.qs('#avlist',c);
+    const PRESETS=[['off','Off'],['am','Morning 09-15'],['pm','Evening 15-22'],['all','All day 09-22']];
+    const isCustom=(v)=> typeof v==='string' && /^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(v);
+    function rowEl(i){
+      const cur=av[i]||'off', custom=isCustom(cur), cs=custom?cur.split('-'):['',''];
+      const pills=PRESETS.map(([v,label])=>`<button class="pill ${(!custom&&cur===v)?'ok':'ghost'}" data-p="${v}" style="cursor:pointer">${label}</button>`).join(' ');
+      const row=U.el(`<div class="li" style="flex-wrap:wrap;gap:8px"><div class="meta" style="min-width:64px"><b>${DAYS[i]}</b></div>
+        <div class="row gap6 wrap center">${pills}
+          <span class="pill ${custom?'ok':'ghost'}" style="gap:4px">Custom <input type="time" class="cstart" value="${cs[0]}" style="border:none;background:transparent;width:82px;font-size:13px;color:inherit">–<input type="time" class="cend" value="${cs[1]}" style="border:none;background:transparent;width:82px;font-size:13px;color:inherit"></span>
+        </div></div>`);
+      row.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{ av[i]=b.dataset.p; replaceRow(i); });
+      const a=row.querySelector('.cstart'), b=row.querySelector('.cend');
+      const onCustom=()=>{ if(a.value&&b.value){ av[i]=a.value+'-'+b.value; replaceRow(i); } };
+      a.onchange=onCustom; b.onchange=onCustom;
+      return row;
     }
-    draw();
+    function replaceRow(i){ const old=list.children[i], neu=rowEl(i); if(old) list.replaceChild(neu, old); else list.appendChild(neu); }
+    for(let i=0;i<DAYS.length;i++) list.appendChild(rowEl(i));
     U.qs('#saveAv',c).onclick=async()=>{ await MKR.db.put('users',{id:sess.id, availability:av}); U.toast('Availability saved','green'); };
   }
 

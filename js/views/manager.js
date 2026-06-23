@@ -50,27 +50,41 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
   };
 
   // ---------- My availability (manager fills their own, like staff) ----------
-  const AVAIL_OPTS=[['off','Off','var(--red-soft)'],['am','Morning 09-15','var(--blue-soft)'],['pm','Evening 15-22','var(--accent-soft)'],['all','All day 09-22','var(--green-soft)']];
   async function availabilityPage(c){
     const sess=MKR.auth.current();
     const me=await MKR.db.get('users',sess.id)||{};
-    const av=Object.assign({}, me.availability||{});   // {0..6:'off|am|pm|all'}
+    const av=Object.assign({}, me.availability||{});   // {0..6: 'off'|'am'|'pm'|'all'|'HH:MM-HH:MM'}
     c.innerHTML=`
       <div class="section-head"><div><h2>My availability</h2><p>Pick the times you can work each day — the auto-roster uses this to schedule you too</p></div>
         <button class="btn btn-dark btn-sm" id="saveAv">Save</button></div>
-      <div class="card" style="padding:12px 18px"><div id="avlist"></div></div>
-      <div class="disclaimer mt16"><span>🗓️</span>Set your availability so the owner/auto-roster can put you on the right shifts. Managers can be rostered just like staff.</div>`;
-    const el=U.qs('#avlist',c);
-    function draw(){   // only redraw the list, so the Save button keeps its handler
-      el.innerHTML=DAYS.map((d,i)=>{
-        const cur=av[i]||'off';
-        const opts=AVAIL_OPTS.map(([v,label])=>`<button class="pill ${cur===v?'ok':'ghost'}" data-set="${i}:${v}" style="cursor:pointer">${label}</button>`).join(' ');
-        return `<div class="li" style="flex-wrap:wrap;gap:8px"><div class="meta" style="min-width:70px"><b>${d}</b></div><div class="row gap6 wrap">${opts}</div></div>`;
-      }).join('');
-      U.qsa('[data-set]',el).forEach(b=>b.onclick=()=>{ const [i,v]=b.dataset.set.split(':'); av[i]=v; draw(); });
+      <div class="card" style="padding:6px 18px"><div id="avlist"></div></div>
+      <div class="disclaimer mt16"><span>🗓️</span>Tap a quick slot, or set your own start/end time per day. The owner/auto-roster uses this to schedule you — managers can be rostered just like staff.</div>`;
+    buildAvailability(c, av, ()=> MKR.db.put('users',{id:sess.id, availability:av}));
+  }
+
+  // Shared availability editor: quick presets + custom time per day, updated
+  // ROW-BY-ROW (no full re-render) so the page never jumps while you edit.
+  function buildAvailability(c, av, persist){
+    const list=U.qs('#avlist',c);
+    const PRESETS=[['off','Off'],['am','Morning 09-15'],['pm','Evening 15-22'],['all','All day 09-22']];
+    const isCustom=(v)=> typeof v==='string' && /^\d{1,2}:\d{2}-\d{1,2}:\d{2}$/.test(v);
+    function rowEl(i){
+      const cur=av[i]||'off', custom=isCustom(cur), cs=custom?cur.split('-'):['',''];
+      const pills=PRESETS.map(([v,label])=>`<button class="pill ${(!custom&&cur===v)?'ok':'ghost'}" data-p="${v}" style="cursor:pointer">${label}</button>`).join(' ');
+      const row=U.el(`<div class="li" style="flex-wrap:wrap;gap:8px"><div class="meta" style="min-width:64px"><b>${DAYS[i]}</b></div>
+        <div class="row gap6 wrap center">${pills}
+          <span class="pill ${custom?'ok':'ghost'}" style="gap:4px">Custom <input type="time" class="cstart" value="${cs[0]}" style="border:none;background:transparent;width:82px;font-size:13px;color:inherit">–<input type="time" class="cend" value="${cs[1]}" style="border:none;background:transparent;width:82px;font-size:13px;color:inherit"></span>
+        </div></div>`);
+      row.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{ av[i]=b.dataset.p; replaceRow(i); });
+      const a=row.querySelector('.cstart'), b=row.querySelector('.cend');
+      const onCustom=()=>{ if(a.value&&b.value){ av[i]=a.value+'-'+b.value; replaceRow(i); } };
+      a.onchange=onCustom; b.onchange=onCustom;
+      return row;
     }
-    draw();
-    U.qs('#saveAv',c).onclick=async()=>{ await MKR.db.put('users',{id:sess.id, availability:av}); U.toast('Availability saved','green'); };
+    function replaceRow(i){ const old=list.children[i], neu=rowEl(i); if(old) list.replaceChild(neu, old); else list.appendChild(neu); }
+    list.innerHTML='';
+    for(let i=0;i<DAYS.length;i++) list.appendChild(rowEl(i));
+    const sv=U.qs('#saveAv',c); if(sv) sv.onclick=async()=>{ await persist(); U.toast('Availability saved','green'); };
   }
 
   // ---------- Reservations + walk-in queue ----------
@@ -284,6 +298,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     function staffHours(id){ return U.round2(shifts.filter(s=>s.staffId===id).reduce((t,s)=>t+hrs(s.start,s.end),0)); }
 
     function draw(){
+      const sy = window.scrollY;   // keep scroll position so editing a shift doesn't jump to the top
       const cells = DAYS.map((d,di)=>{
         const ds = shifts.filter(s=>s.day===di);
         const wknd = di>=5?'wknd':'';
@@ -323,6 +338,10 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
           <div class="roster">${DAYS.map(d=>`<div class="hd">${d}</div>`).join('')}${cells}</div>
         </div>
         <div class="card" style="padding:8px 18px;margin-bottom:16px">
+          <div class="section-title" style="padding-top:12px">Roster by role · 按角色班表</div>
+          <div id="byRole"></div>
+        </div>
+        <div class="card" style="padding:8px 18px;margin-bottom:16px">
           <div class="section-title" style="padding-top:12px">Everyone's weekly hours</div>
           <div class="list" id="ovList"></div>
         </div>
@@ -343,6 +362,23 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         return `<div class="li"><div class="ava">${s.emoji||U.initials(s.name)}</div>
           <div class="meta"><b>${U.esc(s.name)}</b><span>${U.esc(s.position||'—')} · ${cnt} shift${cnt===1?'':'s'}</span></div>
           <span class="pill ghost">${U.hrs(h)}</span></div>`;
+      }).join('') : '<div class="empty"><div class="em">👥</div><p>No staff yet</p></div>';
+
+      // Roster by role: who's on, in which role, and exactly what hours.
+      const dayShifts=(id)=> shifts.filter(x=>x.staffId===id).sort((a,b)=> a.day-b.day || String(a.start).localeCompare(String(b.start)));
+      const groupName=(s)=> s.role==='manager' ? 'Manager 经理' : (s.position || 'Staff 员工');
+      const groups={}; staff.forEach(s=>{ const g=groupName(s); (groups[g]=groups[g]||[]).push(s); });
+      const order=Object.keys(groups).sort((a,b)=> (/经理|Manager/.test(a)?-1 : /经理|Manager/.test(b)?1 : a.localeCompare(b)));
+      const br=U.qs('#byRole',c);
+      br.innerHTML = staff.length ? order.map(g=>{
+        const rows=groups[g].map(s=>{
+          const sh=dayShifts(s.id);
+          const times = sh.length ? sh.map(x=>`${DAYS[x.day]} ${x.start}–${x.end}`).join('　·　') : '<span class="faint">no shifts</span>';
+          return `<div class="li"><div class="ava">${s.emoji||U.initials(s.name)}</div>
+            <div class="meta"><b>${U.esc(s.name)}</b><span>${times}</span></div>
+            <span class="pill ghost">${U.hrs(staffHours(s.id))}</span></div>`;
+        }).join('');
+        return `<div class="section-title" style="padding:10px 0 2px;color:var(--accent);text-transform:none;font-size:13.5px">${U.esc(g)} · ${groups[g].length}</div>${rows}`;
       }).join('') : '<div class="empty"><div class="em">👥</div><p>No staff yet</p></div>';
 
       // Drag to reschedule
@@ -372,6 +408,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       const cb=U.qs('#cfgBtn',c); if(cb) cb.onclick=shiftSettings;
       // Drill-in: each stat card opens a detail view
       U.qsa('[data-stat]',c).forEach(card=> card.onclick=()=>statDetail(card.dataset.stat));
+      try{ window.scrollTo(0, sy); }catch(e){}   // restore scroll — no jump after editing a shift
     }
 
     // Detail modals for the rostering stat cards
@@ -486,7 +523,14 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     async function autoSchedule(){
       if(!(await U.confirm('Auto-roster','This clears this week\'s roster and regenerates it from staff availability. Continue?',{ok:'Generate'}))) return;
       const SLOTS = slots.map(s=>({...s, h:hrs(s.start,s.end)}));
-      const fits=(av,k)=> av==='all' || av===k;
+      const toMin=(t)=>{ const p=String(t).split(':'); return (+p[0])*60+(+(p[1]||0)); };
+      const fits=(av,slot)=>{
+        if(!av || av==='off') return false;
+        if(av==='all' || av===slot.k) return true;
+        const m=String(av).match(/^(\d{1,2}:\d{2})-(\d{1,2}:\d{2})$/);   // custom range covers the slot?
+        if(m) return toMin(m[1])<=toMin(slot.start) && toMin(m[2])>=toMin(slot.end);
+        return false;
+      };
       // Clear this week
       for(const s of [...shifts]) await MKR.db.remove('shifts', s.id);
       shifts=[];
@@ -513,7 +557,7 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
             if(assignedToday.has(s.id)) return false;
             if(roleShifts[s.position] && roleShifts[s.position].fixed) return false;  // already handled above
             const av=(s.availability&&s.availability[day])||'all';
-            if(!fits(av,slot.k)) return false;
+            if(!fits(av,slot)) return false;
             if(s.visa==='student' && (load[s.id]+slot.h) > settings.visaCapFortnight) return false;
             return true;
           }).sort((a,b)=>load[a.id]-load[b.id]);
