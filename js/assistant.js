@@ -128,6 +128,18 @@ window.MKR = window.MKR || {};
     const rev=orders.reduce((t,o)=>t+o.total,0);
     return `Today's revenue so far is <b>${U.money(rev)}</b> across ${orders.length} order${orders.length===1?'':'s'}. ${jump('#/owner/report','Open report')}`;
   }
+  // Owner / manager: who is rostered today + who has actually clocked in.
+  async function whoIsOnToday(){
+    const s=MKR.auth.current(); const kid=(s&&s.kitchenId)||'k_main';
+    const todayIdx=(new Date().getDay()+6)%7;
+    const users=(await MKR.db.getAll('users')).filter(u=>(u.kitchenId||'k_main')===kid && !u.offboarded);
+    const nameOf=id=>{ const u=users.find(x=>x.id===id); return u?u.name:id; };
+    const shifts=(await MKR.db.getAll('shifts')).filter(x=>x.day===todayIdx).sort((a,b)=>a.start.localeCompare(b.start));
+    const onNow=new Set((await MKR.db.getAll('clockins')).filter(c=>c.date===U.todayISO()).map(c=>c.staffId));
+    if(!shifts.length) return `今天没有人排班。${jump('#/manager/schedule','打开排班')}`;
+    const rows=shifts.map(x=>`• ${x.start}–${x.end} ${U.esc(nameOf(x.staffId))}${onNow.has(x.staffId)?' <b>✅ 已打卡</b>':''}`).join('<br>');
+    return `今天上班的人（共 ${shifts.length} 个班，${onNow.size} 人已打卡）：<br>${rows} ${jump('#/manager/schedule','打开排班')}`;
+  }
   async function myBranches(){
     const s=MKR.auth.current(); if(!s) return signIn();
     const mine=(await MKR.db.getAll('kitchens')).filter(k=>k.ownerId===s.id || k.id===s.kitchenId);
@@ -231,6 +243,10 @@ window.MKR = window.MKR || {};
     if(role==='staff' && (has('swap','换班','调班','顶班','换掉','someone to cover','cover my','give away') || (has('drop','请假',"can't work",'cannot work','不能上','叫经理','找经理') && has('shift','班')))){
       return await requestSwap(q);
     }
+    // "Who's working / on shift today" — venue-wide roster + clock-in status.
+    // Checked before the named-teammate lookup so it isn't mistaken for a person.
+    if((role==='owner'||role==='manager') && has('谁上班','谁在上班','谁当班','谁值班','谁在岗','在岗','今天排班','今天的班','今天班表','今天上班','现在谁','谁今天','who is working','whos working','who works today','who is on','whos on','on shift today','rostered today','working today','who is in','whos in')) return await whoIsOnToday();
+
     // A named teammate always wins (findTeammate excludes the caller, so "my
     // roster" still falls through to the personal answer below). Note: we must
     // NOT gate on `mine` here — names like "Amy" contain the substring "my",
@@ -271,7 +287,11 @@ window.MKR = window.MKR || {};
     // optional LLM hook
     if(typeof MKR.assistant.llm==='function'){ try{ const r=await MKR.assistant.llm(qRaw,{role}); if(r) return r; }catch(e){} }
 
-    return `I'm not sure about that one yet. Try asking about a feature (rostering, POS, menu, tasks, blind drop, onboarding…) or your own info (“what are my shifts?”, “my hours”, “my pay”).<br>${chips()}`;
+    const zh = (MKR.i18n && MKR.i18n.lang)==='zh';
+    return (zh
+      ? `这个我还不太确定。你可以问我功能（排班、收银 POS、菜单、任务、盲对账、入职…），或你自己的信息（“我的班次”“我的工时”“我的工资”“今天谁上班”）。<br>`
+      : `I'm not sure about that one yet. Try asking about a feature (rostering, POS, menu, tasks, blind drop, onboarding…) or your own info (“what are my shifts?”, “my hours”, “my pay”).<br>`)
+      + chips();
   }
 
   function greeting(){
@@ -281,12 +301,21 @@ window.MKR = window.MKR || {};
   }
   function chips(){
     const role=roleOf();
+    const zh = (MKR.i18n && MKR.i18n.lang)==='zh';
     let qs;
-    if(role==='staff') qs=['What are my shifts?','How many hours this week?','My pay estimate','How do I clock in?','My TFN'];
-    else if(role==='manager') qs=['What are my shifts?','How do I roster the team?','How do I add a user?','This week\'s wages','Post an SOS cover'];
-    else if(role==='owner') qs=['Today\'s revenue','How many staff?','Add a branch','Set pay rates','How does compliance work?'];
-    else if(role==='superadmin') qs=['Pending applications','How do I approve a restaurant?','Switch into a venue'];
-    else qs=['How do I sign in?','What is this app?','Switch to 中文'];
+    if(zh){
+      if(role==='staff') qs=['我的班次','我的工时','我的工资','怎么打卡','我的税号'];
+      else if(role==='manager') qs=['今天谁上班','怎么排班','怎么加人','我的工资','换班/顶班'];
+      else if(role==='owner') qs=['今天营业额','有多少员工','今天谁上班','合规检查','怎么排班'];
+      else if(role==='superadmin') qs=['待审批申请','怎么审批餐厅','切换视图'];
+      else qs=['这个系统怎么用','怎么登录','切换语言'];
+    } else {
+      if(role==='staff') qs=['What are my shifts?','How many hours this week?','My pay estimate','How do I clock in?','My TFN'];
+      else if(role==='manager') qs=['Who is working today?','How do I roster the team?','How do I add a user?','This week\'s wages','Post an SOS cover'];
+      else if(role==='owner') qs=['Today\'s revenue','How many staff?','Who is working today?','How does compliance work?','How do I roster?'];
+      else if(role==='superadmin') qs=['Pending applications','How do I approve a restaurant?','Switch into a venue'];
+      else qs=['How do I sign in?','What is this app?','Switch to 中文'];
+    }
     return `<div class="ai-chips">${qs.map(t=>`<button class="ai-chip" data-q="${U.esc(t)}">${U.esc(t)}</button>`).join('')}</div>`;
   }
 
@@ -355,6 +384,9 @@ window.MKR = window.MKR || {};
         if(top.length) lines.push(`Top sellers today: ${top.join(', ')}.`);
         const staff=(await MKR.db.getAll('users')).filter(u=>u.role!=='owner' && !u.offboarded);
         lines.push(`Team: ${staff.filter(u=>u.role==='staff').length} staff, ${staff.filter(u=>u.role==='manager').length} managers.`);
+        try{ const todayIdx=(new Date().getDay()+6)%7; const nm=id=>{const u=staff.find(x=>x.id===id);return u?u.name:id;};
+          const onToday=(await MKR.db.getAll('shifts')).filter(x=>x.day===todayIdx).sort((a,b)=>a.start.localeCompare(b.start)).map(x=>`${nm(x.staffId)} ${x.start}-${x.end}`);
+          if(onToday.length) lines.push(`On shift today: ${onToday.join(', ')}.`); }catch(e){}
         const so=(await MKR.db.getAll('menu')).filter(m=>m.soldOut).map(m=>m.nm);
         if(so.length) lines.push(`Sold out right now: ${so.join(', ')}.`);
         try{ const q=(await MKR.db.getAll('waitlist')).filter(x=>x.status==='waiting'||x.status==='called').length;

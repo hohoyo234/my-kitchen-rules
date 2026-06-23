@@ -153,6 +153,8 @@ window.MKR = window.MKR || {}; MKR.views = MKR.views || {};
       let html='…'; try{ html = await MKR.assistant.answer(text); }catch(e){ html='抱歉，我没能处理这个。'; }
       thinking.innerHTML = html;
       thinking.querySelectorAll('[data-jump]').forEach(a=>a.onclick=(e)=>{ e.preventDefault(); location.hash=a.dataset.jump; });
+      // Wire the suggestion chips returned by the assistant (otherwise they look clickable but do nothing).
+      thinking.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>handle(b.dataset.q));
       logEl.scrollTop=logEl.scrollHeight; return;
     }
     if(action.readOnly || mode()==='auto'){

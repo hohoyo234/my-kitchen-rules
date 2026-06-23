@@ -297,19 +297,21 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
     }
     function staffHours(id){ return U.round2(shifts.filter(s=>s.staffId===id).reduce((t,s)=>t+hrs(s.start,s.end),0)); }
 
+    // People grouped into bands (top→bottom): 员工 Staff → 厨房 Kitchen → 经理 Manager.
+    function bandOf(s){
+      if(s.role==='manager') return 'manager';
+      const pos=(s.position||'').toLowerCase();
+      if(/kitchen|chef|厨|后厨/.test(pos)) return 'kitchen';
+      return 'floor';
+    }
+    const BANDS=[
+      {key:'floor',   label:'员工 · Staff',   color:'#2E7D5B', soft:'#E4F2EA'},
+      {key:'kitchen', label:'厨房 · Kitchen', color:'#B5561E', soft:'#FBE9DD'},
+      {key:'manager', label:'经理 · Manager', color:'#2F5BB7', soft:'#E5EDFB'},
+    ];
+
     function draw(){
       const sy = window.scrollY;   // keep scroll position so editing a shift doesn't jump to the top
-      const cells = DAYS.map((d,di)=>{
-        const ds = shifts.filter(s=>s.day===di);
-        const wknd = di>=5?'wknd':'';
-        const today = new Date().toISOString().slice(0,10);
-        const chips = ds.map(s=>{ const st=staffOf(s.staffId);
-          const cls = st.visa==='student'?'b':'a';
-          const breach = st.visa==='student' && staffHours(s.staffId) > (settings.visaCapFortnight||48);
-          const reminded = s.remindedAt && new Date(s.remindedAt).toISOString().slice(0,10)===today;
-          return `<span class="shift-chip ${cls}${breach?' breach':''}" draggable="true" data-id="${s.id}"${breach?' title="Over the student-visa fortnight cap"':''}>${U.esc(st.name)} ${s.start}${breach?' ⛔':''}${reminded?' <span title="Shift reminder delivered">🔔</span>':''}<span class="rm" data-rm="${s.id}">×</span></span>`; }).join('');
-        return `<div class="cell ${wknd}" data-day="${di}"><div class="d"><span>${d}</span><span>${MKR.util.fmtDate(MKR.seed.dayTs(di))}</span></div>${chips}<div class="faint" style="font-size:10px;margin-top:4px">+ shift</div></div>`;
-      }).join('');
       const wage = weekWage();
       const fc = settings.revenueForecast||1;
       const pct = wage/fc;
@@ -334,16 +336,10 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         <div class="alert info" style="margin-bottom:16px"><span>🕘</span><div>Operating hours <b>${oh.open} – ${oh.close}</b> · shift slots: ${slots.map(s=>`<b>${s.label} ${s.start}-${s.end}</b>`).join(' · ')}${Object.keys(roleShifts).length?` · fixed-hours roles: ${Object.entries(roleShifts).filter(([,v])=>v.fixed).map(([r,v])=>`<b>${U.esc(r)} ${v.start}-${v.end}</b>`).join(' · ')||'—'}`:''}</div></div>
         ${over?`<div class="alert red" style="margin-bottom:16px"><span>⚠️</span><div><b>Labor cost warning</b> · ${U.round2(pct*100).toFixed(2)}% is over the ${U.round2((settings.laborPctThreshold||0.28)*100).toFixed(2)}% red line — synced to the owner for approval.</div></div>`:''}
         ${breaches.length?`<div class="alert red" style="margin-bottom:16px"><span>⛔</span><div><b>Visa-hours breach — must fix before publishing</b><br>${breaches.map(b=>`${U.esc(b.name)} is rostered <b>${b.h.toFixed(2)}h</b> / ${visaCap}h fortnight cap`).join('<br>')}<br>Remove shifts to comply — the system already blocks adding any shift that would breach the cap.</div></div>`:''}
-        <div class="card" style="padding:16px;margin-bottom:16px">
-          <div class="roster">${DAYS.map(d=>`<div class="hd">${d}</div>`).join('')}${cells}</div>
-        </div>
-        <div class="card" style="padding:8px 18px;margin-bottom:16px">
-          <div class="section-title" style="padding-top:12px">Roster by role · 按角色班表</div>
-          <div id="byRole"></div>
-        </div>
-        <div class="card" style="padding:8px 18px;margin-bottom:16px">
-          <div class="section-title" style="padding-top:12px">Everyone's weekly hours</div>
-          <div class="list" id="ovList"></div>
+        <div class="card" style="padding:14px 14px 6px;margin-bottom:16px">
+          <div class="section-title" style="padding:2px 4px 10px">全员排班表 · Team roster (员工 / 厨房 / 经理)</div>
+          <div class="rgrid-wrap" id="rosterGrid"></div>
+          <div class="faint" style="font-size:11.5px;padding:8px 4px">点空白格加班次 · 拖动班次可改日期/换人 · 点 × 删除</div>
         </div>
         <div class="alert green"><span>✅</span><div><b>Award pay auto-calculated</b> · split by age + employment type across weekday / Saturday / Sunday / public holiday. <b>Indicative — the employer confirms before pay runs.</b></div></div>`;
 
@@ -354,54 +350,67 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
         return `<div style="font-size:12.5px;margin-top:2px;color:${near?'var(--red)':'var(--ink)'}">${U.esc(s.name)} ${h.toFixed(2)}/${settings.visaCapFortnight}h</div>`; }).join('');
       U.qs('#visaSummary',c).innerHTML = sum || '—';
 
-      // Everyone's weekly hours overview (rounded to 2 decimals)
-      const ov = U.qs('#ovList',c);
-      ov.innerHTML = staff.length ? staff.map(s=>{
-        const cnt = shifts.filter(x=>x.staffId===s.id).length;
-        const h = staffHours(s.id);
-        return `<div class="li"><div class="ava">${s.emoji||U.initials(s.name)}</div>
-          <div class="meta"><b>${U.esc(s.name)}</b><span>${U.esc(s.position||'—')} · ${cnt} shift${cnt===1?'':'s'}</span></div>
-          <span class="pill ghost">${U.hrs(h)}</span></div>`;
-      }).join('') : '<div class="empty"><div class="em">👥</div><p>No staff yet</p></div>';
+      // ---- Team roster grid: rows = people (员工 / 厨房 / 经理), cols = days ----
+      const todayIdx=(new Date().getDay()+6)%7;
+      const dayShiftsFor=(id,di)=> shifts.filter(x=>x.staffId===id && x.day===di).sort((a,b)=>String(a.start).localeCompare(String(b.start)));
+      const css = `<style>
+        .rgrid-wrap{overflow-x:auto}
+        table.rgrid{border-collapse:separate;border-spacing:0;width:100%;min-width:780px;font-size:12.5px}
+        .rgrid th,.rgrid td{border-bottom:1px solid #ECE5DB;border-right:1px solid #ECE5DB;padding:6px 8px;vertical-align:top}
+        .rgrid thead th{background:#FBF7F0;position:sticky;top:0;z-index:3;text-align:center;font-weight:700;white-space:nowrap}
+        .rgrid th.rg-name,.rgrid td.rg-name{position:sticky;left:0;background:#fff;z-index:2;text-align:left;min-width:150px;max-width:172px}
+        .rgrid thead th.rg-name{z-index:4;background:#FBF7F0}
+        .rgrid td.rg-cell{min-width:90px;cursor:pointer}
+        .rgrid td.rg-cell.today{background:#FFF9F0}
+        .rgrid td.rg-cell:hover{background:#FBF2E6}
+        .rgrid td.rg-cell.dragover{outline:2px dashed var(--accent);outline-offset:-2px}
+        .rgrid tr.rg-bandrow td{padding:7px 10px;font-weight:800;letter-spacing:.3px}
+        .rg-chip{display:inline-flex;align-items:center;gap:5px;margin:2px;padding:3px 8px;border-radius:8px;font-weight:700;white-space:nowrap;border:1px solid;cursor:grab;line-height:1.3}
+        .rg-chip .rg-x{cursor:pointer;opacity:.5;font-weight:800}
+        .rg-chip.breach{outline:2px solid var(--red);outline-offset:1px}
+        .rgrid td.rg-total{text-align:center;font-weight:800;white-space:nowrap;background:#fff;min-width:60px}
+        .rg-empty{color:#C9BEAF;font-size:12px}
+      </style>`;
+      const head = `<tr><th class="rg-name">姓名 / Name</th>${DAYS.map((d,di)=>`<th${di===todayIdx?' style="color:var(--accent)"':''}>${d}<br><span style="font-weight:500;font-size:10.5px;color:#9b9081">${MKR.util.fmtDate(MKR.seed.dayTs(di))}</span></th>`).join('')}<th>合计<br><span style="font-weight:500;font-size:10.5px;color:#9b9081">Total</span></th></tr>`;
+      let bodyRows='';
+      for(const band of BANDS){
+        const people=staff.filter(s=>bandOf(s)===band.key);
+        if(!people.length) continue;
+        bodyRows += `<tr class="rg-bandrow"><td class="rg-name" style="background:${band.soft};color:${band.color};position:sticky;left:0;z-index:2">${band.label} · ${people.length}</td><td colspan="${DAYS.length+1}" style="background:${band.soft}"></td></tr>`;
+        for(const s of people){
+          const breach = s.visa==='student' && staffHours(s.id) > (settings.visaCapFortnight||48);
+          const cells = DAYS.map((d,di)=>{
+            const chips = dayShiftsFor(s.id,di).map(x=>`<span class="rg-chip${breach?' breach':''}" draggable="true" data-id="${x.id}" style="background:${band.soft};color:${band.color};border-color:${band.color}55">${x.start}–${x.end}<span class="rg-x" data-rm="${x.id}">×</span></span>`).join('');
+            return `<td class="rg-cell${di===todayIdx?' today':''}" data-day="${di}" data-staff="${s.id}">${chips||'<span class="rg-empty">＋</span>'}</td>`;
+          }).join('');
+          bodyRows += `<tr><td class="rg-name"><div style="display:flex;align-items:center;gap:7px"><span class="ava" style="width:26px;height:26px;font-size:13px">${s.emoji||U.initials(s.name)}</span><div style="min-width:0"><b style="display:block">${U.esc(s.name)}</b><span class="faint" style="font-size:11px">${U.esc(s.position||(s.role==='manager'?'Manager':'Staff'))}${s.visa==='student'?' · 学签':''}</span></div></div></td>${cells}<td class="rg-total" style="color:${breach?'var(--red)':'inherit'}">${U.hrs(staffHours(s.id))}</td></tr>`;
+        }
+      }
+      const grid=U.qs('#rosterGrid',c);
+      grid.innerHTML = staff.length ? `${css}<table class="rgrid"><thead>${head}</thead><tbody>${bodyRows}</tbody></table>` : '<div class="empty"><div class="em">👥</div><p>No staff yet</p></div>';
 
-      // Roster by role: who's on, in which role, and exactly what hours.
-      const dayShifts=(id)=> shifts.filter(x=>x.staffId===id).sort((a,b)=> a.day-b.day || String(a.start).localeCompare(String(b.start)));
-      const groupName=(s)=> s.role==='manager' ? 'Manager 经理' : (s.position || 'Staff 员工');
-      const groups={}; staff.forEach(s=>{ const g=groupName(s); (groups[g]=groups[g]||[]).push(s); });
-      const order=Object.keys(groups).sort((a,b)=> (/经理|Manager/.test(a)?-1 : /经理|Manager/.test(b)?1 : a.localeCompare(b)));
-      const br=U.qs('#byRole',c);
-      br.innerHTML = staff.length ? order.map(g=>{
-        const rows=groups[g].map(s=>{
-          const sh=dayShifts(s.id);
-          const times = sh.length ? sh.map(x=>`${DAYS[x.day]} ${x.start}–${x.end}`).join('　·　') : '<span class="faint">no shifts</span>';
-          return `<div class="li"><div class="ava">${s.emoji||U.initials(s.name)}</div>
-            <div class="meta"><b>${U.esc(s.name)}</b><span>${times}</span></div>
-            <span class="pill ghost">${U.hrs(staffHours(s.id))}</span></div>`;
-        }).join('');
-        return `<div class="section-title" style="padding:10px 0 2px;color:var(--accent);text-transform:none;font-size:13.5px">${U.esc(g)} · ${groups[g].length}</div>${rows}`;
-      }).join('') : '<div class="empty"><div class="em">👥</div><p>No staff yet</p></div>';
-
-      // Drag to reschedule
+      // Drag a chip → drop on any cell to change its day and/or reassign its person.
       let dragId=null;
-      U.qsa('.shift-chip',c).forEach(ch=>{
+      U.qsa('.rg-chip',grid).forEach(ch=>{
         ch.addEventListener('dragstart',e=>{ dragId=ch.dataset.id; e.dataTransfer.effectAllowed='move'; ch.style.opacity='.35'; });
         ch.addEventListener('dragend',()=>{ ch.style.opacity=''; });
       });
-      U.qsa('.roster .cell',c).forEach(cell=>{
-        cell.addEventListener('dragover',e=>{ e.preventDefault(); cell.style.borderColor='var(--accent)'; });
-        cell.addEventListener('dragleave',()=>{ cell.style.borderColor=''; });
-        cell.addEventListener('drop',async e=>{ e.preventDefault(); cell.style.borderColor='';
-          if(!dragId) return; const newDay=+cell.dataset.day; const sh=shifts.find(x=>x.id===dragId);
-          if(sh && sh.day!==newDay){
-            await MKR.db.put('shifts',{id:dragId, day:newDay});
-            await MKR.audit.log({action:'shift.create', desc:`Moved ${staffOf(sh.staffId).name} → ${DAYS[newDay]}`});
+      U.qsa('.rg-cell',grid).forEach(cell=>{
+        cell.addEventListener('dragover',e=>{ e.preventDefault(); cell.classList.add('dragover'); });
+        cell.addEventListener('dragleave',()=>cell.classList.remove('dragover'));
+        cell.addEventListener('drop',async e=>{ e.preventDefault(); cell.classList.remove('dragover');
+          if(!dragId) return; const newDay=+cell.dataset.day, newStaff=cell.dataset.staff;
+          const sh=shifts.find(x=>x.id===dragId);
+          if(sh && (sh.day!==newDay || sh.staffId!==newStaff)){
+            await MKR.db.put('shifts',{id:dragId, day:newDay, staffId:newStaff});
+            await MKR.audit.log({action:'shift.create', desc:`Moved ${staffOf(newStaff).name} → ${DAYS[newDay]}`});
             shifts = await MKR.db.getAll('shifts'); draw();
           }
           dragId=null;
         });
-        cell.onclick=(e)=>{ if(e.target.closest('.shift-chip')||e.target.dataset.rm) return; addShift(+cell.dataset.day); };
+        cell.onclick=(e)=>{ if(e.target.closest('.rg-chip')||e.target.dataset.rm) return; addShift(+cell.dataset.day, cell.dataset.staff); };
       });
-      U.qsa('[data-rm]',c).forEach(b=> b.onclick=async(e)=>{ e.stopPropagation();
+      U.qsa('[data-rm]',grid).forEach(b=> b.onclick=async(e)=>{ e.stopPropagation();
         await MKR.db.remove('shifts', b.dataset.rm); await MKR.audit.log({action:'shift.remove', desc:'Removed shift'});
         shifts = await MKR.db.getAll('shifts'); draw(); });
       const ab=U.qs('#autoBtn',c); if(ab) ab.onclick=autoSchedule;
@@ -572,8 +581,8 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
       U.toast(`Generated ${placed} shifts${gaps?` · ${gaps} slot(s) had no one available`:''}`,'green');
     }
 
-    function addShift(day){
-      const opts = staff.map(s=>`<option value="${s.id}">${U.esc(s.name)} · ${({casual:'Casual',parttime:'PT',fulltime:'FT'})[s.employment]||(s.role==='manager'?'Manager':'')}${s.position?' · '+U.esc(s.position):''}${s.visa==='student'?' · student visa':''}</option>`).join('');
+    function addShift(day, preStaffId){
+      const opts = staff.map(s=>`<option value="${s.id}"${s.id===preStaffId?' selected':''}>${U.esc(s.name)} · ${({casual:'Casual',parttime:'PT',fulltime:'FT'})[s.employment]||(s.role==='manager'?'Manager':'')}${s.position?' · '+U.esc(s.position):''}${s.visa==='student'?' · student visa':''}</option>`).join('');
       const slotPick = slots.map((s,i)=>`<option value="${i}">${U.esc(s.label)} ${s.start}-${s.end}</option>`).join('');
       const wrap = U.el(`<div>
         <div class="field"><label>Staff</label><select class="input" id="ss">${opts}</select></div>
