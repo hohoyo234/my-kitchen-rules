@@ -249,8 +249,20 @@ window.MKR = window.MKR || {}; MKR.portals = MKR.portals || {};
             <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;cursor:pointer"><input type="checkbox" data-on="${k}" ${m.on?'checked':''} style="width:22px;height:22px"> Enabled</label>
           </div></div>`;
       }).join('');
-      U.qsa('[data-role]',el).forEach(b=>b.onclick=()=>{ const [k,r]=b.dataset.role.split(':'); const arr=work[k].roles; const i=arr.indexOf(r); if(i>=0) arr.splice(i,1); else arr.push(r); draw(); });
-      U.qsa('[data-on]',el).forEach(ch=>ch.onchange=()=>{ work[ch.dataset.on].on=ch.checked; draw(); });
+      U.qsa('[data-role]',el).forEach(b=>b.onclick=()=>{ const [k,r]=b.dataset.role.split(':'); const arr=work[k].roles; const i=arr.indexOf(r); if(i>=0) arr.splice(i,1); else arr.push(r); draw(); applyLive(); });
+      U.qsa('[data-on]',el).forEach(ch=>ch.onchange=()=>{ work[ch.dataset.on].on=ch.checked; draw(); applyLive(); });
+    }
+    // Apply a toggle the instant it changes: persist + show/hide the matching
+    // sidebar (and mobile-nav) items live — no need to press "Save settings".
+    async function applyLive(){
+      try{ await MKR.features.save(work); }catch(e){}
+      const sess=MKR.auth.current(); const portal=MKR.portals[sess.role]||MKR.portals.owner;
+      const can=(n)=> !n.feature || MKR.features.can(n.feature, sess.role==='owner'?'owner':sess.role);
+      U.qsa('.sidebar .nav-item, .mobile-nav a').forEach(a=>{
+        const mm=(a.getAttribute('href')||'').match(/#\/[^/]+\/([^/?]+)/); if(!mm) return;
+        const nav=portal.nav.find(n=>n.id===mm[1]); if(!nav) return;
+        a.style.display = can(nav) ? '' : 'none';
+      });
     }
     draw();
     U.qs('#saveBtn',c).onclick=async()=>{
