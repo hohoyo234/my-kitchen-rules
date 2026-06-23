@@ -34,10 +34,23 @@ window.MKR = window.MKR || {};
       MKR.util.toast(body? (title+' · '+body) : title);
     },
 
-    // Register the Service Worker (PWA + background-push base)
+    // Register the Service Worker (PWA + background-push base).
+    // Also auto-applies updates: when a newer SW takes control, reload once so
+    // the page runs the latest code (no more "stuck on an old cached version").
     async registerSW(){
       if(!('serviceWorker' in navigator)) return null;
-      try{ return await navigator.serviceWorker.register('sw.js'); }catch(e){ return null; }
+      try{
+        if(navigator.serviceWorker.controller){
+          navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+            if(sessionStorage.getItem('mkr.swreloaded')) return;
+            sessionStorage.setItem('mkr.swreloaded','1');
+            location.reload();
+          });
+        }
+        const reg = await navigator.serviceWorker.register('sw.js');
+        try{ reg.update(); }catch(e){}
+        return reg;
+      }catch(e){ return null; }
     },
 
     // Subscribe to Web Push, store it in push_subscriptions (for the Edge Function to push)
